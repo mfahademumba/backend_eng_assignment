@@ -1,6 +1,56 @@
-from fastapi import FastAPI
+from app.api.v1.router import router as api_v1_router
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-app = FastAPI(title="backend-eng-assignment")
+from app.schemas.common import ErrorDetail, ResponseBuilder
+from config.settings import get_settings
+
+settings = get_settings()
+app = FastAPI(title=settings.app_name)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(
+    _request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    message = exc.detail if isinstance(exc.detail, str) else "Request failed."
+    response = ResponseBuilder.error(
+        message=message,
+        errors=[ErrorDetail(code="http_error", detail=message)],
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=response.model_dump(mode="json"),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    _request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    errors = [
+        ErrorDetail(
+            code="validation_error",
+            detail=error["msg"],
+            field=".".join(str(part) for part in error["loc"]),
+        )
+        for error in exc.errors()
+    ]
+    response = ResponseBuilder.error(
+        message="Validation failed.",
+        errors=errors,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=response.model_dump(mode="json"),
+    )
+
+
+app.include_router(api_v1_router)
 
 
 @app.get("/")
@@ -16,7 +66,12 @@ def health_check() -> dict[str, str]:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host=settings.app_host,
+        port=settings.app_port,
+        reload=settings.app_reload,
+    )
 
 
 if __name__ == "__main__":
