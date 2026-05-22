@@ -11,11 +11,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
 from pydantic import BaseModel, ConfigDict, EmailStr, ValidationError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_db_session
-from app.models import User, UserRole
+from app.infrastructure.database import get_db_session
+from app.infrastructure.repositories.user_repository import UserRepository
+from app.models import UserRole
 from config.settings import get_settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -107,11 +107,10 @@ async def get_current_admin_for_workspace(
             detail="You do not have access to this workspace.",
         )
 
-    user = await session.scalar(
-        select(User).where(
-            User.workspace_id == token_payload.workspace_id,
-            User.email == token_payload.user_email,
-        )
+    user_repository = UserRepository(session)
+    user = await user_repository.get_by_workspace_id_and_email(
+        workspace_id=token_payload.workspace_id,
+        email=token_payload.user_email,
     )
     if user is None:
         raise HTTPException(
