@@ -1,9 +1,9 @@
-from app.api.v1.router import router as api_v1_router
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.v1.router import router as api_v1_router
 from app.schemas.common import ErrorDetail, ResponseBuilder
 from config.settings import get_settings
 
@@ -45,7 +45,7 @@ async def request_validation_exception_handler(
         errors=errors,
     )
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=422,
         content=response.model_dump(mode="json"),
     )
 
