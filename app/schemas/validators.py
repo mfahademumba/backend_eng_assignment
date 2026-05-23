@@ -22,7 +22,8 @@ StrongPassword = Annotated[
         description=(
             "Minimum 8 characters, with at least one uppercase letter, "
             "one lowercase letter, and one number."
-        )
+        ),
+        json_schema_extra={"pattern": r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$"},
     ),
     AfterValidator(validate_password_complexity),
 ]

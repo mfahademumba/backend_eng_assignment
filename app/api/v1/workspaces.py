@@ -29,6 +29,10 @@ def get_workspace_service(
     "/",
     response_model=ApiResponse[WorkspaceCreateData],
     status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
+        status.HTTP_409_CONFLICT: {"model": ApiResponse[None]},
+    },
 )
 async def create_workspace(
     payload: WorkspaceCreateRequest,
@@ -42,6 +46,11 @@ async def create_workspace(
     "/{workspace_id}/",
     response_model=ApiResponse[WorkspaceDetailsData],
     status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
+        status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
+        status.HTTP_404_NOT_FOUND: {"model": ApiResponse[None]},
+    },
 )
 async def get_workspace_details(
     workspace_id: uuid.UUID,
