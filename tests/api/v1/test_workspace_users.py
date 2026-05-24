@@ -102,10 +102,31 @@ def test_create_workspace_user_rejects_weak_password(
     body = response.json()
     assert body["success"] is False
     assert body["message"] == "Validation failed."
+    assert body["data"] is None
     assert any(
-        error["field"] == "body.password" and "uppercase" in error["detail"].lower()
+        error["field"] == "body.password"
+        and error["code"] == "validation_error"
+        and "uppercase" in error["detail"].lower()
         for error in body["errors"]
     )
+
+
+def test_workspace_user_routes_openapi_document_payload_error_responses(client) -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    create_responses = paths["/api/v1/workspaces/{workspace_id}/users/"]["post"][
+        "responses"
+    ]
+    update_responses = paths["/api/v1/workspaces/{workspace_id}/users/{user_id}/"][
+        "patch"
+    ]["responses"]
+
+    assert "400" in create_responses
+    assert "422" in create_responses
+    assert "400" in update_responses
+    assert "422" in update_responses
 
 
 def test_create_workspace_user_returns_403_for_non_admin(

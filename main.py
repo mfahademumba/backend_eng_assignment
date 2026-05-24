@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -7,6 +9,7 @@ from app.api.v1.router import router as api_v1_router
 from app.schemas.common import ErrorDetail, ResponseBuilder
 from config.settings import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
@@ -46,6 +49,23 @@ async def request_validation_exception_handler(
     )
     return JSONResponse(
         status_code=422,
+        content=response.model_dump(mode="json"),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    logger.exception("Unhandled exception while processing %s", request.url.path)
+    message = "Internal server error."
+    response = ResponseBuilder.error(
+        message=message,
+        errors=[ErrorDetail(code="internal_server_error", detail=message)],
+    )
+    return JSONResponse(
+        status_code=500,
         content=response.model_dump(mode="json"),
     )
 

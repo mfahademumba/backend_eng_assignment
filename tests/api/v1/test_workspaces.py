@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.api.v1.workspaces import get_workspace_service
 from app.models import User, UserRole, Workspace
+from main import app
 
 
 def test_create_workspace_returns_workspace_and_admin_credentials(client) -> None:
@@ -45,11 +47,59 @@ def test_create_workspace_rejects_weak_password(client) -> None:
     body = response.json()
     assert body["success"] is False
     assert body["message"] == "Validation failed."
+    assert body["data"] is None
     assert any(
         error["field"] == "body.admin_password"
+        and error["code"] == "validation_error"
         and "uppercase" in error["detail"].lower()
         for error in body["errors"]
     )
+
+
+def test_create_workspace_returns_normalized_500_for_unexpected_errors(
+    client_no_raise,
+) -> None:
+    class FailingWorkspaceService:
+        async def create_workspace(self, _payload):
+            raise RuntimeError("database is unavailable")
+
+    app.dependency_overrides[get_workspace_service] = lambda: FailingWorkspaceService()
+    try:
+        response = client_no_raise.post(
+            "/api/v1/workspaces/",
+            json={
+                "name": "Acme Corp",
+                "admin_email": "admin@acme.com",
+                "admin_password": "SecurePass123!",
+            },
+        )
+    finally:
+        app.dependency_overrides.pop(get_workspace_service, None)
+
+    assert response.status_code == 500
+
+    body = response.json()
+    assert body == {
+        "success": False,
+        "message": "Internal server error.",
+        "data": None,
+        "errors": [
+            {
+                "code": "internal_server_error",
+                "detail": "Internal server error.",
+                "field": None,
+            }
+        ],
+    }
+
+
+def test_create_workspace_openapi_documents_payload_error_responses(client) -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    responses = response.json()["paths"]["/api/v1/workspaces/"]["post"]["responses"]
+    assert "400" in responses
+    assert "422" in responses
 
 
 def test_get_workspace_details_returns_200_for_admin(

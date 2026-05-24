@@ -31,6 +31,7 @@ def get_workspace_service(
     status_code=status.HTTP_201_CREATED,
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
         status.HTTP_409_CONFLICT: {"model": ApiResponse[None]},
     },
 )

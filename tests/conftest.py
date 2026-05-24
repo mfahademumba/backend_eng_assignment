@@ -127,6 +127,22 @@ def client(fake_session: FakeAsyncSession) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture()
+def client_no_raise(
+    fake_session: FakeAsyncSession,
+) -> Generator[TestClient, None, None]:
+    async def override_get_db_session() -> AsyncIterator[FakeAsyncSession]:
+        yield fake_session
+
+    from app.infrastructure.database import get_db_session
+    from main import app
+
+    app.dependency_overrides[get_db_session] = override_get_db_session
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
 def auth_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     secret = "test-secret-key-test-secret-key-1234567890"
 
