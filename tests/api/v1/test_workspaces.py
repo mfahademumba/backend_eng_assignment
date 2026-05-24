@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.api.v1.workspaces import get_workspace_service
 from app.models import User, UserRole, Workspace
 from main import app
 
 
-def test_create_workspace_returns_workspace_and_admin_credentials(client) -> None:
+def test_create_workspace_returns_workspace_and_admin_credentials(
+    client,
+    fake_session,
+) -> None:
     response = client.post(
         "/api/v1/workspaces/",
         json={
@@ -31,6 +34,10 @@ def test_create_workspace_returns_workspace_and_admin_credentials(client) -> Non
     assert data["admin_credentials"]["role"] == "admin"
     assert "admin_password" not in data
 
+    admin_user = fake_session.users[(UUID(data["workspace"]["id"]), "admin@acme.com")]
+    assert admin_user.password_hash != "SecurePass123!"
+    assert admin_user.password_hash.startswith("argon2$")
+
 
 def test_create_workspace_rejects_weak_password(client) -> None:
     response = client.post(
@@ -49,9 +56,7 @@ def test_create_workspace_rejects_weak_password(client) -> None:
     assert body["message"] == "Validation failed."
     assert body["data"] is None
     assert any(
-        error["field"] == "body.admin_password"
-        and error["code"] == "validation_error"
-        and "uppercase" in error["detail"].lower()
+        error["field"] == "body.admin_password" and error["code"] == "validation_error"
         for error in body["errors"]
     )
 

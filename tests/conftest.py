@@ -167,12 +167,14 @@ def make_token(auth_secret: str):
         workspace_id: UUID,
         role: Any,
         token_version: int = 0,
+        token_type: str = "access",
     ) -> str:
         payload = {
             "user_email": user_email,
             "workspace_id": str(workspace_id),
             "role": role.value,
             "token_version": token_version,
+            "type": token_type,
         }
         return jwt.encode(payload, auth_secret, algorithm="HS256")
 

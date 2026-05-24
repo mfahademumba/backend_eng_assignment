@@ -6,6 +6,8 @@ from pydantic import AfterValidator, Field, StringConstraints
 
 
 def validate_password_complexity(value: str) -> str:
+    if not value.isascii() or not all(character.isprintable() for character in value):
+        raise ValueError("Password must contain only printable ASCII characters.")
     if not any(character.isupper() for character in value):
         raise ValueError("Password must contain at least one uppercase letter.")
     if not any(character.islower() for character in value):
@@ -17,13 +19,25 @@ def validate_password_complexity(value: str) -> str:
 
 StrongPassword = Annotated[
     str,
-    StringConstraints(min_length=8, max_length=128),
+    StringConstraints(
+        min_length=8,
+        max_length=128,
+        pattern=(
+            r"^(?:"
+            r"[ -~]*[a-z][ -~]*[A-Z][ -~]*[0-9]"
+            r"|[ -~]*[a-z][ -~]*[0-9][ -~]*[A-Z]"
+            r"|[ -~]*[A-Z][ -~]*[a-z][ -~]*[0-9]"
+            r"|[ -~]*[A-Z][ -~]*[0-9][ -~]*[a-z]"
+            r"|[ -~]*[0-9][ -~]*[a-z][ -~]*[A-Z]"
+            r"|[ -~]*[0-9][ -~]*[A-Z][ -~]*[a-z]"
+            r")[ -~]*$"
+        ),
+    ),
     Field(
         description=(
-            "Minimum 8 characters, with at least one uppercase letter, "
-            "one lowercase letter, and one number."
+            "Minimum 8 and maximum 128 printable ASCII characters, with at least "
+            "one uppercase letter, one lowercase letter, and one number."
         ),
-        json_schema_extra={"pattern": r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$"},
     ),
     AfterValidator(validate_password_complexity),
 ]

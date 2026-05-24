@@ -6,12 +6,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import (
     AuthenticatedUser,
     create_token_pair,
+    decode_refresh_token,
     get_current_user,
     verify_password,
 )
 from app.infrastructure.database import get_db_session
 from app.infrastructure.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginData, LoginRequest, LogoutData
+from app.schemas.auth import (
+    LoginData,
+    LoginRequest,
+    LogoutData,
+    RefreshData,
+    RefreshRequest,
+)
 from app.schemas.common import ApiResponse, ResponseBuilder
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,6 +35,7 @@ def get_user_repository(
     response_model=ApiResponse[LoginData],
     status_code=status.HTTP_200_OK,
     responses={
+        status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
     },
@@ -50,6 +58,45 @@ async def login(
     return ResponseBuilder.success(
         LoginData.model_validate(token_pair.model_dump()),
         message="Login successful.",
+    )
+
+
+@router.post(
+    "/refresh/",
+    response_model=ApiResponse[RefreshData],
+    status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
+        status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
+    },
+)
+async def refresh(
+    payload: RefreshRequest,
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> ApiResponse[RefreshData]:
+    token_payload = decode_refresh_token(payload.refresh_token)
+    user = await user_repository.get_by_workspace_id_and_email(
+        workspace_id=token_payload.workspace_id,
+        email=token_payload.user_email,
+    )
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user was not found.",
+        )
+
+    if user.token_version != token_payload.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token is no longer valid.",
+        )
+
+    user = await user_repository.increment_token_version(user)
+    token_pair = create_token_pair(AuthenticatedUser.model_validate(user))
+    return ResponseBuilder.success(
+        RefreshData.model_validate(token_pair.model_dump()),
+        message="Token refreshed successfully.",
     )
 
 

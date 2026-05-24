@@ -18,5 +18,13 @@ class LoginData(TokenPair):
     pass
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: Annotated[str, StringConstraints(min_length=1)]
+
+
+class RefreshData(TokenPair):
+    pass
+
+
 class LogoutData(BaseModel):
     token_version: int

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import importlib
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
@@ -22,6 +19,7 @@ from app.models import UserRole
 from config.settings import get_settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
+password_hasher = PasswordHasher()
 
 
 class TokenPayload(BaseModel):
@@ -29,6 +27,7 @@ class TokenPayload(BaseModel):
     workspace_id: uuid.UUID
     role: UserRole
     token_version: int
+    type: Literal["access", "refresh"]
 
 
 class TokenPair(BaseModel):
@@ -48,44 +47,19 @@ class AuthenticatedUser(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    password_bytes = password.encode("utf-8")
-
-    try:
-        bcrypt = importlib.import_module("bcrypt")
-    except ModuleNotFoundError:
-        salt = os.urandom(16)
-        password_hash = hashlib.scrypt(password_bytes, salt=salt, n=16384, r=8, p=1)
-        encoded_salt = base64.b64encode(salt).decode("utf-8")
-        encoded_hash = base64.b64encode(password_hash).decode("utf-8")
-        return f"scrypt${encoded_salt}${encoded_hash}"
-
-    hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
-    return f"bcrypt${hashed_password.decode('utf-8')}"
+    hashed_password = password_hasher.hash(password)
+    return f"argon2${hashed_password}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    password_bytes = password.encode("utf-8")
+    if not password_hash.startswith("argon2$"):
+        return False
 
-    if password_hash.startswith("bcrypt$"):
-        try:
-            bcrypt = importlib.import_module("bcrypt")
-        except ModuleNotFoundError:
-            return False
-        stored_hash = password_hash.removeprefix("bcrypt$").encode("utf-8")
-        return bool(bcrypt.checkpw(password_bytes, stored_hash))
-
-    if password_hash.startswith("scrypt$"):
-        try:
-            _prefix, encoded_salt, encoded_hash = password_hash.split("$", 2)
-            salt = base64.b64decode(encoded_salt.encode("utf-8"))
-            expected_hash = base64.b64decode(encoded_hash.encode("utf-8"))
-        except (ValueError, UnicodeEncodeError):
-            return False
-
-        actual_hash = hashlib.scrypt(password_bytes, salt=salt, n=16384, r=8, p=1)
-        return hmac.compare_digest(actual_hash, expected_hash)
-
-    return False
+    stored_hash = password_hash.removeprefix("argon2$")
+    try:
+        return bool(password_hasher.verify(stored_hash, password))
+    except (InvalidHashError, VerificationError, VerifyMismatchError):
+        return False
 
 
 def _get_jwt_secret() -> str:
@@ -145,7 +119,7 @@ def create_token_pair(user: AuthenticatedUser) -> TokenPair:
     )
 
 
-def decode_access_token(token: str) -> TokenPayload:
+def _decode_token(token: str, *, token_label: str) -> TokenPayload:
     settings = get_settings()
     secret = _get_jwt_secret()
 
@@ -154,12 +128,12 @@ def decode_access_token(token: str) -> TokenPayload:
     except ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token has expired.",
+            detail=f"{token_label} token has expired.",
         ) from exc
     except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token is invalid.",
+            detail=f"{token_label} token is invalid.",
         ) from exc
 
     try:
@@ -167,8 +141,28 @@ def decode_access_token(token: str) -> TokenPayload:
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token payload is invalid.",
+            detail=f"{token_label} token payload is invalid.",
         ) from exc
+
+
+def decode_access_token(token: str) -> TokenPayload:
+    token_payload = _decode_token(token, token_label="Access")
+    if token_payload.type != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token is invalid.",
+        )
+    return token_payload
+
+
+def decode_refresh_token(token: str) -> TokenPayload:
+    token_payload = _decode_token(token, token_label="Refresh")
+    if token_payload.type != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token is invalid.",
+        )
+    return token_payload
 
 
 async def get_current_user(

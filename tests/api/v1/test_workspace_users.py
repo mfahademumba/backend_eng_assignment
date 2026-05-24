@@ -71,6 +71,7 @@ def test_create_workspace_user_returns_created_user(
 
     created_user = fake_session.users[(workspace_id, "user@acme.com")]
     assert created_user.password_hash != "SecurePass123!"
+    assert created_user.password_hash.startswith("argon2$")
 
 
 def test_create_workspace_user_rejects_weak_password(
@@ -104,9 +105,7 @@ def test_create_workspace_user_rejects_weak_password(
     assert body["message"] == "Validation failed."
     assert body["data"] is None
     assert any(
-        error["field"] == "body.password"
-        and error["code"] == "validation_error"
-        and "uppercase" in error["detail"].lower()
+        error["field"] == "body.password" and error["code"] == "validation_error"
         for error in body["errors"]
     )
 

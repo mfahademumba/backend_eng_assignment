@@ -87,6 +87,108 @@ def test_login_rejects_missing_user(client, fake_session, auth_secret) -> None:
     assert response.json()["message"] == "Invalid email or password."
 
 
+def test_refresh_returns_rotated_access_and_refresh_tokens(
+    client,
+    fake_session,
+    make_token,
+) -> None:
+    _workspace, user = seed_user(fake_session)
+    refresh_token = make_token(
+        user_email=user.email,
+        workspace_id=user.workspace_id,
+        role=user.role,
+        token_version=user.token_version,
+        token_type="refresh",
+    )
+
+    response = client.post(
+        "/api/v1/auth/refresh/",
+        json={"refresh_token": refresh_token},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["message"] == "Token refreshed successfully."
+    assert body["data"]["token_type"] == "bearer"
+    assert body["data"]["access_token"]
+    assert body["data"]["refresh_token"]
+    assert body["data"]["access_token"] != body["data"]["refresh_token"]
+    assert body["data"]["refresh_token"] != refresh_token
+    assert user.token_version == 1
+
+
+def test_refresh_rejects_reused_refresh_token(
+    client,
+    fake_session,
+    make_token,
+) -> None:
+    _workspace, user = seed_user(fake_session)
+    refresh_token = make_token(
+        user_email=user.email,
+        workspace_id=user.workspace_id,
+        role=user.role,
+        token_version=user.token_version,
+        token_type="refresh",
+    )
+
+    first_response = client.post(
+        "/api/v1/auth/refresh/",
+        json={"refresh_token": refresh_token},
+    )
+    assert first_response.status_code == 200
+
+    second_response = client.post(
+        "/api/v1/auth/refresh/",
+        json={"refresh_token": refresh_token},
+    )
+
+    assert second_response.status_code == 401
+    assert second_response.json()["message"] == "Refresh token is no longer valid."
+
+
+def test_refresh_rejects_access_token(client, fake_session, make_token) -> None:
+    _workspace, user = seed_user(fake_session)
+    access_token = make_token(
+        user_email=user.email,
+        workspace_id=user.workspace_id,
+        role=user.role,
+        token_version=user.token_version,
+        token_type="access",
+    )
+
+    response = client.post(
+        "/api/v1/auth/refresh/",
+        json={"refresh_token": access_token},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["message"] == "Refresh token is invalid."
+
+
+def test_refresh_token_cannot_access_protected_routes(
+    client,
+    fake_session,
+    make_token,
+) -> None:
+    workspace, user = seed_user(fake_session, role=UserRole.ADMIN)
+    refresh_token = make_token(
+        user_email=user.email,
+        workspace_id=user.workspace_id,
+        role=user.role,
+        token_version=user.token_version,
+        token_type="refresh",
+    )
+
+    response = client.get(
+        f"/api/v1/workspaces/{workspace.id}/users/",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["message"] == "Access token is invalid."
+
+
 def test_logout_increments_token_version(client, fake_session, make_token) -> None:
     _workspace, user = seed_user(fake_session)
     token = make_token(
