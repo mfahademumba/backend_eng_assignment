@@ -158,6 +158,50 @@ def test_access_check_uses_highest_priority_matching_policy(
     assert data["matched_policy_id"] == str(deny_policy.id)
 
 
+def test_access_check_returns_404_for_user_from_another_workspace(
+    client, fake_session
+) -> None:
+    workspace, _user, resource = seed_workspace_user_resource(fake_session)
+    other_workspace, other_user, _other_resource = seed_workspace_user_resource(
+        fake_session
+    )
+
+    response = client.post(
+        "/api/v1/access-check/",
+        json={
+            "workspace_id": str(workspace.id),
+            "user_id": str(other_user.id),
+            "resource_id": str(resource.id),
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["message"] == "User not found."
+    assert other_workspace.id != workspace.id
+
+
+def test_access_check_returns_404_for_resource_from_another_workspace(
+    client, fake_session
+) -> None:
+    workspace, user, _resource = seed_workspace_user_resource(fake_session)
+    other_workspace, _other_user, other_resource = seed_workspace_user_resource(
+        fake_session
+    )
+
+    response = client.post(
+        "/api/v1/access-check/",
+        json={
+            "workspace_id": str(workspace.id),
+            "user_id": str(user.id),
+            "resource_id": str(other_resource.id),
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["message"] == "Resource not found."
+    assert other_workspace.id != workspace.id
+
+
 def test_access_check_denies_by_default_when_no_policy_matches(
     client, fake_session
 ) -> None:

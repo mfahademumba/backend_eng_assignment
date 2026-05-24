@@ -155,6 +155,55 @@ def test_get_workspace_details_returns_200_for_admin(
     assert body["data"]["workspace"]["name"] == "Acme Corp"
 
 
+def test_get_workspace_details_returns_403_for_token_from_different_workspace(
+    client,
+    fake_session,
+    make_token,
+) -> None:
+    now = datetime.now(tz=UTC)
+    requested_workspace_id = uuid4()
+    authenticated_workspace_id = uuid4()
+    admin_email = "admin@other.com"
+
+    fake_session.workspaces[requested_workspace_id] = Workspace(
+        id=requested_workspace_id,
+        name="Requested Workspace",
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.workspaces[authenticated_workspace_id] = Workspace(
+        id=authenticated_workspace_id,
+        name="Authenticated Workspace",
+        created_at=now,
+        updated_at=now,
+    )
+    admin_user = User(
+        id=uuid4(),
+        workspace_id=authenticated_workspace_id,
+        email=admin_email,
+        password_hash="hashed-password",
+        role=UserRole.ADMIN,
+        token_version=0,
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.users[(authenticated_workspace_id, admin_email)] = admin_user
+
+    token = make_token(
+        user_email=admin_email,
+        workspace_id=authenticated_workspace_id,
+        role=UserRole.ADMIN,
+    )
+
+    response = client.get(
+        f"/api/v1/workspaces/{requested_workspace_id}/",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["message"] == "You do not have access to this workspace."
+
+
 def test_get_workspace_details_returns_403_for_non_admin_user(
     client,
     fake_session,

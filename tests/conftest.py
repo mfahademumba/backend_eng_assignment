@@ -103,17 +103,40 @@ class FakeAsyncSession:
         if column_descriptions:
             entity = column_descriptions[0].get("entity")
         entity_name = getattr(entity, "__name__", None)
-        if self.scalar_result is not None and entity_name == "User":
-            return self.scalar_result
 
         params = getattr(statement.compile(), "params", {})
         workspace_id = params.get("workspace_id_1")
         email = params.get("email_1")
-        if workspace_id is not None and email is not None:
-            return self.users.get((workspace_id, email))
-
-        policy_id = params.get("id_1")
+        entity_id = params.get("id_1")
         resource_id = params.get("resource_id_1")
+
+        if entity_name == "User":
+            if workspace_id is not None and email is not None:
+                user = self.users.get((workspace_id, email))
+                if user is not None:
+                    return user
+                if (
+                    self.scalar_result is not None
+                    and self.scalar_result.workspace_id == workspace_id
+                    and self.scalar_result.email == email
+                ):
+                    return self.scalar_result
+                return None
+            if workspace_id is not None and entity_id is not None:
+                for user in self.users.values():
+                    if user.workspace_id == workspace_id and user.id == entity_id:
+                        return user
+                return None
+            return self.scalar_result
+
+        if entity_name == "Resource":
+            if workspace_id is not None and entity_id is not None:
+                resource = self.resources.get(entity_id)
+                if resource is not None and resource.workspace_id == workspace_id:
+                    return resource
+            return None
+
+        policy_id = entity_id
         if (
             policy_id is not None
             and workspace_id is not None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Resource
@@ -17,7 +18,9 @@ class ResourceRepository:
         workspace_id: uuid.UUID,
         resource_id: uuid.UUID,
     ) -> Resource | None:
-        resource = await self.session.get(Resource, resource_id)
-        if resource is None or resource.workspace_id != workspace_id:
-            return None
-        return resource
+        return await self.session.scalar(
+            select(Resource).where(
+                Resource.id == resource_id,
+                Resource.workspace_id == workspace_id,
+            )
+        )

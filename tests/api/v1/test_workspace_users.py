@@ -259,6 +259,50 @@ def test_update_workspace_user_role_updates_user(
     assert member_user.role == UserRole.ADMIN
 
 
+def test_update_workspace_user_role_returns_404_for_user_from_another_workspace(
+    client,
+    fake_session,
+    make_token,
+) -> None:
+    workspace_id = uuid4()
+    other_workspace_id = uuid4()
+    _workspace, admin_user = seed_workspace_with_admin(fake_session, workspace_id)
+    now = datetime.now(tz=UTC)
+    fake_session.workspaces[other_workspace_id] = Workspace(
+        id=other_workspace_id,
+        name="Other Corp",
+        created_at=now,
+        updated_at=now,
+    )
+    other_user = User(
+        id=uuid4(),
+        workspace_id=other_workspace_id,
+        email="user@other.com",
+        full_name="Other User",
+        password_hash="hashed-password",
+        role=UserRole.USER,
+        token_version=0,
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.users[(other_workspace_id, other_user.email)] = other_user
+    token = make_token(
+        user_email=admin_user.email,
+        workspace_id=workspace_id,
+        role=UserRole.ADMIN,
+    )
+
+    response = client.patch(
+        f"/api/v1/workspaces/{workspace_id}/users/{other_user.id}/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["message"] == "User not found."
+    assert other_user.role == UserRole.USER
+
+
 def test_update_workspace_user_role_returns_404_for_missing_user(
     client,
     fake_session,

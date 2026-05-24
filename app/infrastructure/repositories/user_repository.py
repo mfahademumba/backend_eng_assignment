@@ -48,10 +48,12 @@ class UserRepository:
         workspace_id: uuid.UUID,
         user_id: uuid.UUID,
     ) -> User | None:
-        user = await self.session.get(User, user_id)
-        if user is None or user.workspace_id != workspace_id:
-            return None
-        return user
+        return await self.session.scalar(
+            select(User).where(
+                User.id == user_id,
+                User.workspace_id == workspace_id,
+            )
+        )
 
     async def update_role(self, user: User) -> User:
         await self.session.commit()
