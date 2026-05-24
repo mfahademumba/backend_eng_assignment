@@ -6,6 +6,10 @@ services:
     image: backend-eng-assignment:latest
     env_file:
       - .env
+    environment:
+      APP_HOST: ${APP_HOST}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
     ports:
       - "${APP_PORT}:8000"
     depends_on:
@@ -20,7 +24,7 @@ services:
       - .env
 
     ports:
-      - "${DATABASE_PORT}:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

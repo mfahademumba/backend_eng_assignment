@@ -25,11 +25,11 @@ APP_RELOAD=true
 LOG_LEVEL=INFO
 LOG_API_REQUESTS=true
 DATABASE_DRIVER=postgresql+asyncpg
-DATABASE_USERNAME=
-DATABASE_PASSWORD=
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_NAME=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=
 JWT_SECRET_KEY=
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
@@ -66,7 +66,7 @@ uv run uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Database migrations
 
-Alembic migrations live in `app/migrations` and use the composed database connection from the `DATABASE_*` settings.
+Alembic migrations live in `app/migrations` and use the composed database connection from `DATABASE_DRIVER` and the `POSTGRES_*` settings.
 
 Apply migrations:
 

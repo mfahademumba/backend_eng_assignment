@@ -21,29 +21,29 @@ class Settings(BaseSettings):
     log_api_requests: bool = Field(default=True, alias="LOG_API_REQUESTS")
 
     database_driver: str = Field(default="postgresql+asyncpg", alias="DATABASE_DRIVER")
-    database_username: str | None = Field(default=None, alias="DATABASE_USERNAME")
-    database_password: SecretStr | None = Field(default=None, alias="DATABASE_PASSWORD")
-    database_host: str = Field(default="localhost", alias="DATABASE_HOST")
-    database_port: int = Field(default=5432, alias="DATABASE_PORT")
-    database_name: str | None = Field(default=None, alias="DATABASE_NAME")
+    postgres_user: str | None = Field(default=None, alias="POSTGRES_USER")
+    postgres_password: SecretStr | None = Field(default=None, alias="POSTGRES_PASSWORD")
+    postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
+    postgres_db: str | None = Field(default=None, alias="POSTGRES_DB")
 
     @property
     def database_url(self) -> str | None:
-        if not self.database_username or not self.database_name:
+        if not self.postgres_user or not self.postgres_db:
             return None
 
         password = (
-            self.database_password.get_secret_value()
-            if self.database_password is not None
+            self.postgres_password.get_secret_value()
+            if self.postgres_password is not None
             else None
         )
         return URL.create(
             drivername=self.database_driver,
-            username=self.database_username,
+            username=self.postgres_user,
             password=password,
-            host=self.database_host,
-            port=self.database_port,
-            database=self.database_name,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
         ).render_as_string(hide_password=False)
 
     jwt_secret_key: SecretStr | None = Field(default=None, alias="JWT_SECRET_KEY")
