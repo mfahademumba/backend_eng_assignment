@@ -4,6 +4,17 @@ from typing import Annotated
 
 from pydantic import AfterValidator, Field, StringConstraints
 
+STRONG_PASSWORD_PATTERN = (
+    r"^(?:"
+    r"[ -~]*[a-z][ -~]*[A-Z][ -~]*[0-9]"
+    r"|[ -~]*[a-z][ -~]*[0-9][ -~]*[A-Z]"
+    r"|[ -~]*[A-Z][ -~]*[a-z][ -~]*[0-9]"
+    r"|[ -~]*[A-Z][ -~]*[0-9][ -~]*[a-z]"
+    r"|[ -~]*[0-9][ -~]*[a-z][ -~]*[A-Z]"
+    r"|[ -~]*[0-9][ -~]*[A-Z][ -~]*[a-z]"
+    r")[ -~]*$"
+)
+
 
 def validate_password_complexity(value: str) -> str:
     if not value.isascii() or not all(character.isprintable() for character in value):
@@ -22,16 +33,7 @@ StrongPassword = Annotated[
     StringConstraints(
         min_length=8,
         max_length=128,
-        pattern=(
-            r"^(?:"
-            r"[ -~]*[a-z][ -~]*[A-Z][ -~]*[0-9]"
-            r"|[ -~]*[a-z][ -~]*[0-9][ -~]*[A-Z]"
-            r"|[ -~]*[A-Z][ -~]*[a-z][ -~]*[0-9]"
-            r"|[ -~]*[A-Z][ -~]*[0-9][ -~]*[a-z]"
-            r"|[ -~]*[0-9][ -~]*[a-z][ -~]*[A-Z]"
-            r"|[ -~]*[0-9][ -~]*[A-Z][ -~]*[a-z]"
-            r")[ -~]*$"
-        ),
+        pattern=STRONG_PASSWORD_PATTERN,
     ),
     Field(
         description=(
