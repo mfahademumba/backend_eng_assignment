@@ -19,7 +19,10 @@ schema = schemathesis.openapi.from_asgi("/openapi.json", app)
     deadline=None,
     # Schemathesis generates multiple examples per pytest case. Reusing the
     # TestClient fixture across those examples is intentional for this contract test.
-    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    suppress_health_check=[
+        HealthCheck.function_scoped_fixture,
+        HealthCheck.filter_too_much,
+    ],
 )
 def test_api_schema(case, client):
     if case.method == "POST" and case.path == "/api/v1/workspaces/":
