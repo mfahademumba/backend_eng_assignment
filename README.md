@@ -1,0 +1,88 @@
+# Backend Engineering Assignment
+
+A FastAPI backend service for the backend engineering assignment. The app exposes a root endpoint, a health check endpoint, and versioned API routes mounted from `app/api/v1`.
+
+## Requirements
+
+- Python 3.12 or newer
+- [`uv`](https://docs.astral.sh/uv/) for dependency management
+
+## Setup
+
+Install the project dependencies, including development/test dependencies:
+
+```bash
+uv sync --dev
+```
+
+If you need local configuration, create a `.env` file in the project root. The app reads environment variables from `.env` automatically. Common settings include:
+
+```env
+APP_NAME=backend-eng-assignment
+APP_HOST=127.0.0.1
+APP_PORT=8000
+APP_RELOAD=true
+LOG_LEVEL=INFO
+LOG_API_REQUESTS=true
+DATABASE_URL=
+JWT_SECRET_KEY=
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+```
+
+For development, the defaults are enough to start the app unless the endpoint you are using requires a database or JWT configuration.
+
+## Run the application
+
+Start the FastAPI server with:
+
+```bash
+uv run python main.py
+```
+
+By default, the app runs at:
+
+```text
+http://127.0.0.1:8000
+```
+
+Useful endpoints:
+
+- `GET /` — confirms the application is running
+- `GET /health` — health check endpoint
+- `GET /docs` — interactive FastAPI/OpenAPI documentation
+
+You can also run the ASGI app directly with Uvicorn:
+
+```bash
+uv run uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+## Run tests
+
+Run the test suite with:
+
+```bash
+uv run pytest
+```
+
+To run a specific test file or directory:
+
+```bash
+uv run pytest tests/api
+uv run pytest tests/auth
+uv run pytest tests/infrastructure
+```
+
+## Project structure
+
+```text
+.
+├── app/                 # Application code, API routes, services, schemas, auth, middleware
+├── config/              # Runtime settings
+├── tests/               # Pytest test suite
+├── main.py              # FastAPI app entry point
+├── pyproject.toml       # Project metadata and dependencies
+└── uv.lock              # Locked dependency versions
+```
