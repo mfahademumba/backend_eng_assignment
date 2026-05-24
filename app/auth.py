@@ -197,7 +197,7 @@ async def get_current_user(
     return AuthenticatedUser.model_validate(user)
 
 
-async def get_current_admin_for_workspace(
+async def get_current_user_for_workspace(
     workspace_id: uuid.UUID,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUser:
@@ -207,6 +207,13 @@ async def get_current_admin_for_workspace(
             detail="You do not have access to this workspace.",
         )
 
+    return current_user
+
+
+async def get_current_admin_for_workspace(
+    workspace_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user_for_workspace),
+) -> AuthenticatedUser:
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

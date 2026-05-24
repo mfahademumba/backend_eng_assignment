@@ -193,6 +193,21 @@ class FakeAsyncSession:
             )
             return FakeScalarResult(effective_policies)
 
+        if entity_name == "Resource":
+            resources = [
+                resource
+                for resource in self.resources.values()
+                if workspace_id is None or resource.workspace_id == workspace_id
+            ]
+            resources.sort(
+                key=lambda resource: (
+                    resource.created_at,
+                    resource.name,
+                    str(resource.id),
+                )
+            )
+            return FakeScalarResult(resources)
+
         users = [
             user
             for (user_workspace_id, _email), user in self.users.items()
@@ -212,6 +227,18 @@ class FakeAsyncSession:
         workspace_id = workspace_ids[0] if workspace_ids else None
         resource_id = resource_ids[0] if resource_ids else None
         policy_ids = [value for value in params.values() if value in self.policies]
+        if resource_id is not None and not policy_ids:
+            resource = self.resources.get(resource_id)
+            if resource is not None and (
+                workspace_id is None or resource.workspace_id == workspace_id
+            ):
+                self.resources.pop(resource_id, None)
+                for effective_policy_id, effective_policy in list(
+                    self.effective_policies.items()
+                ):
+                    if effective_policy.resource_id == resource_id:
+                        self.effective_policies.pop(effective_policy_id, None)
+            return None
         if not policy_ids:
             policy_ids = list(self.policies)
         for policy_id in policy_ids:
