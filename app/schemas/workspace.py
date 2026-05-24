@@ -11,7 +11,7 @@ from app.schemas.validators import StrongPassword
 
 WorkspaceName = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=3, max_length=255),
+    StringConstraints(min_length=3, max_length=255),
 ]
 PasswordValue = StrongPassword
 

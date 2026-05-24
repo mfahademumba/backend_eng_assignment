@@ -39,6 +39,7 @@ The repo will follow layered architecture.
 | id            | UUID                     | No       | Primary Key                                                    | gen\_random\_uuid() |
 | workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id), Composite Unique Key with email |                     |
 | email         | VARCHAR(255)             | No       | Composite Unique Key with workspace\_id                        |                     |
+| full\_name    | VARCHAR(255)             | Yes      | Display name for the user                                      |                     |
 | role          | ENUM('admin', 'user')    | No       |                                                                | 'user'              |
 | token\_version | INT                      | No      |                                                                |          0           |
 | created\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                                | NOW()               |

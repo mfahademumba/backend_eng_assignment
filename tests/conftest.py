@@ -18,6 +18,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+class FakeScalarResult:
+    def __init__(self, values: list[Any]) -> None:
+        self.values = values
+
+    def all(self) -> list[Any]:
+        return self.values
+
+
 class FakeAsyncSession:
     def __init__(self) -> None:
         self.added_objects: list[Any] = []
@@ -75,8 +83,28 @@ class FakeAsyncSession:
                     return user
         return None
 
-    async def scalar(self, _statement: Any) -> Any | None:
-        return self.scalar_result
+    async def scalar(self, statement: Any) -> Any | None:
+        if self.scalar_result is not None:
+            return self.scalar_result
+
+        params = getattr(statement.compile(), "params", {})
+        workspace_id = params.get("workspace_id_1")
+        email = params.get("email_1")
+        if workspace_id is not None and email is not None:
+            return self.users.get((workspace_id, email))
+
+        return None
+
+    async def scalars(self, statement: Any) -> FakeScalarResult:
+        params = getattr(statement.compile(), "params", {})
+        workspace_id = params.get("workspace_id_1")
+        users = [
+            user
+            for (user_workspace_id, _email), user in self.users.items()
+            if workspace_id is None or user_workspace_id == workspace_id
+        ]
+        users.sort(key=lambda user: (user.created_at, user.email))
+        return FakeScalarResult(users)
 
 
 @pytest.fixture()
