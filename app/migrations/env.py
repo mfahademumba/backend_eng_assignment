@@ -21,9 +21,10 @@ target_metadata = Base.metadata
 
 def get_database_url() -> str:
     settings = get_settings()
-    if not settings.database_url:
-        raise RuntimeError("DATABASE_URL is not configured.")
-    return settings.database_url
+    database_url = settings.database_url
+    if not database_url:
+        raise RuntimeError("Database settings are not configured.")
+    return database_url
 
 
 def run_migrations_offline() -> None:

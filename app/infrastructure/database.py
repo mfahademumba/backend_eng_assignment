@@ -17,10 +17,11 @@ from config.settings import get_settings
 @lru_cache
 def get_engine() -> AsyncEngine:
     settings = get_settings()
-    if not settings.database_url:
-        raise RuntimeError("DATABASE_URL is not configured.")
+    database_url = settings.database_url
+    if not database_url:
+        raise RuntimeError("Database settings are not configured.")
 
-    return create_async_engine(settings.database_url, pool_pre_ping=True)
+    return create_async_engine(database_url, pool_pre_ping=True)
 
 
 @lru_cache

@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.health import router as health_router
 from app.api.v1.router import router as api_v1_router
 from app.logging import configure_logging
 from app.middleware.logging import log_api_request_middleware
@@ -76,17 +77,8 @@ async def unhandled_exception_handler(
     )
 
 
+app.include_router(health_router)
 app.include_router(api_v1_router)
-
-
-@app.get("/")
-def read_root() -> dict[str, str]:
-    return {"message": "backend-eng-assignment is running"}
-
-
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
 
 
 def main() -> None:

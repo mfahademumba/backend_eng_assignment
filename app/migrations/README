@@ -5,4 +5,4 @@ Common commands from the project root:
     uv run alembic revision --autogenerate -m "message"
     uv run alembic upgrade head
 
-The database connection is loaded from DATABASE_URL via config.settings.
+The database connection is composed from the DATABASE_* settings via config.settings.

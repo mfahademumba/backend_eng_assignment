@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 
 class Settings(BaseSettings):
@@ -19,7 +20,32 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_api_requests: bool = Field(default=True, alias="LOG_API_REQUESTS")
 
-    database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    database_driver: str = Field(default="postgresql+asyncpg", alias="DATABASE_DRIVER")
+    database_username: str | None = Field(default=None, alias="DATABASE_USERNAME")
+    database_password: SecretStr | None = Field(default=None, alias="DATABASE_PASSWORD")
+    database_host: str = Field(default="localhost", alias="DATABASE_HOST")
+    database_port: int = Field(default=5432, alias="DATABASE_PORT")
+    database_name: str | None = Field(default=None, alias="DATABASE_NAME")
+
+    @property
+    def database_url(self) -> str | None:
+        if not self.database_username or not self.database_name:
+            return None
+
+        password = (
+            self.database_password.get_secret_value()
+            if self.database_password is not None
+            else None
+        )
+        return URL.create(
+            drivername=self.database_driver,
+            username=self.database_username,
+            password=password,
+            host=self.database_host,
+            port=self.database_port,
+            database=self.database_name,
+        ).render_as_string(hide_password=False)
+
     jwt_secret_key: SecretStr | None = Field(default=None, alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(
