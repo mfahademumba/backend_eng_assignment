@@ -8,10 +8,10 @@ services:
       - .env
     environment:
       APP_HOST: ${APP_HOST}
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
     ports:
-      - "${APP_PORT}:8000"
+      - "${APP_PORT}:${APP_PORT}"
     depends_on:
       db:
         condition: service_healthy
