@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import get_db_session
 from app.infrastructure.repositories.user_repository import UserRepository
 from app.models import UserRole
+from app.schemas.access_check import AccessCheckRequest
 from config.settings import get_settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -210,6 +211,28 @@ async def get_current_admin_for_workspace(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access is required.",
+        )
+
+    return current_user
+
+
+async def authorize_access_check(
+    payload: AccessCheckRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
+    if current_user.workspace_id != payload.workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this workspace.",
+        )
+
+    if current_user.role == UserRole.ADMIN:
+        return current_user
+
+    if current_user.id != payload.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only check your own access.",
         )
 
     return current_user

@@ -84,7 +84,9 @@ def seed_policy(
     return policy
 
 
-def test_access_check_admin_bypasses_policy_evaluation(client, fake_session) -> None:
+def test_access_check_admin_bypasses_policy_evaluation(
+    client, fake_session, make_token
+) -> None:
     workspace, admin_user, resource = seed_workspace_user_resource(
         fake_session, user_role=UserRole.ADMIN
     )
@@ -99,8 +101,15 @@ def test_access_check_admin_bypasses_policy_evaluation(client, fake_session) -> 
         priority=100,
     )
 
+    token = make_token(
+        user_email=admin_user.email,
+        workspace_id=workspace.id,
+        role=admin_user.role,
+    )
+
     response = client.post(
         "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "workspace_id": str(workspace.id),
             "user_id": str(admin_user.id),
@@ -117,8 +126,51 @@ def test_access_check_admin_bypasses_policy_evaluation(client, fake_session) -> 
     }
 
 
+def test_access_check_admin_can_check_another_user_in_same_workspace(
+    client, fake_session, make_token
+) -> None:
+    workspace, admin_user, resource = seed_workspace_user_resource(
+        fake_session, user_role=UserRole.ADMIN
+    )
+    now = datetime.now(tz=UTC)
+    member_user = User(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        email="member@acme.com",
+        full_name="Member",
+        password_hash="hashed-password",
+        role=UserRole.USER,
+        token_version=0,
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.users[(workspace.id, member_user.email)] = member_user
+    token = make_token(
+        user_email=admin_user.email,
+        workspace_id=workspace.id,
+        role=admin_user.role,
+    )
+
+    response = client.post(
+        "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "workspace_id": str(workspace.id),
+            "user_id": str(member_user.id),
+            "resource_id": str(resource.id),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "access_granted": False,
+        "reason": "No matching policy found. Access denied by default.",
+        "matched_policy_id": None,
+    }
+
+
 def test_access_check_uses_highest_priority_matching_policy(
-    client, fake_session
+    client, fake_session, make_token
 ) -> None:
     workspace, user, resource = seed_workspace_user_resource(fake_session)
     seed_policy(
@@ -141,9 +193,15 @@ def test_access_check_uses_highest_priority_matching_policy(
         target_value=str(user.id),
         priority=20,
     )
+    token = make_token(
+        user_email=user.email,
+        workspace_id=workspace.id,
+        role=user.role,
+    )
 
     response = client.post(
         "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "workspace_id": str(workspace.id),
             "user_id": str(user.id),
@@ -158,16 +216,32 @@ def test_access_check_uses_highest_priority_matching_policy(
     assert data["matched_policy_id"] == str(deny_policy.id)
 
 
-def test_access_check_returns_404_for_user_from_another_workspace(
-    client, fake_session
+def test_access_check_returns_403_when_non_admin_checks_another_same_workspace_user(
+    client, fake_session, make_token
 ) -> None:
-    workspace, _user, resource = seed_workspace_user_resource(fake_session)
-    other_workspace, other_user, _other_resource = seed_workspace_user_resource(
-        fake_session
+    workspace, user, resource = seed_workspace_user_resource(fake_session)
+    now = datetime.now(tz=UTC)
+    other_user = User(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        email="other@acme.com",
+        full_name="Other User",
+        password_hash="hashed-password",
+        role=UserRole.USER,
+        token_version=0,
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.users[(workspace.id, other_user.email)] = other_user
+    token = make_token(
+        user_email=user.email,
+        workspace_id=workspace.id,
+        role=user.role,
     )
 
     response = client.post(
         "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "workspace_id": str(workspace.id),
             "user_id": str(other_user.id),
@@ -175,21 +249,53 @@ def test_access_check_returns_404_for_user_from_another_workspace(
         },
     )
 
-    assert response.status_code == 404
-    assert response.json()["message"] == "User not found."
-    assert other_workspace.id != workspace.id
+    assert response.status_code == 403
+    assert response.json()["message"] == "You can only check your own access."
+
+
+def test_access_check_returns_403_for_user_from_another_workspace(
+    client, fake_session, make_token
+) -> None:
+    workspace, user, resource = seed_workspace_user_resource(fake_session)
+    other_workspace, other_user, _other_resource = seed_workspace_user_resource(
+        fake_session
+    )
+    token = make_token(
+        user_email=user.email,
+        workspace_id=workspace.id,
+        role=user.role,
+    )
+
+    response = client.post(
+        "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "workspace_id": str(other_workspace.id),
+            "user_id": str(other_user.id),
+            "resource_id": str(resource.id),
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["message"] == "You do not have access to this workspace."
 
 
 def test_access_check_returns_404_for_resource_from_another_workspace(
-    client, fake_session
+    client, fake_session, make_token
 ) -> None:
     workspace, user, _resource = seed_workspace_user_resource(fake_session)
     other_workspace, _other_user, other_resource = seed_workspace_user_resource(
         fake_session
     )
+    token = make_token(
+        user_email=user.email,
+        workspace_id=workspace.id,
+        role=user.role,
+    )
 
     response = client.post(
         "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "workspace_id": str(workspace.id),
             "user_id": str(user.id),
@@ -202,13 +308,35 @@ def test_access_check_returns_404_for_resource_from_another_workspace(
     assert other_workspace.id != workspace.id
 
 
-def test_access_check_denies_by_default_when_no_policy_matches(
-    client, fake_session
-) -> None:
+def test_access_check_returns_401_without_authentication(client, fake_session) -> None:
     workspace, user, resource = seed_workspace_user_resource(fake_session)
 
     response = client.post(
         "/api/v1/access-check/",
+        json={
+            "workspace_id": str(workspace.id),
+            "user_id": str(user.id),
+            "resource_id": str(resource.id),
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["message"] == "Authentication credentials were not provided."
+
+
+def test_access_check_denies_by_default_when_no_policy_matches(
+    client, fake_session, make_token
+) -> None:
+    workspace, user, resource = seed_workspace_user_resource(fake_session)
+    token = make_token(
+        user_email=user.email,
+        workspace_id=workspace.id,
+        role=user.role,
+    )
+
+    response = client.post(
+        "/api/v1/access-check/",
+        headers={"Authorization": f"Bearer {token}"},
         json={
             "workspace_id": str(workspace.id),
             "user_id": str(user.id),
