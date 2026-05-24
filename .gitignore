@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Coverage reports
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.hypothesis/
