@@ -4,49 +4,58 @@ A FastAPI backend service for the backend engineering assignment. The app expose
 
 ## Requirements
 
+To run the app with Docker Compose:
+
+- Docker
+- Docker Compose
+
+To run the app or tests directly on your machine:
+
 - Python 3.12 or newer
 - [`uv`](https://docs.astral.sh/uv/) for dependency management
 
 ## Setup
 
-Install the project dependencies, including development/test dependencies:
+Create a `.env` file in the project root. Docker Compose uses this file for both the API and PostgreSQL services, and the app also reads it when running locally.
 
-```bash
-uv sync --dev
-```
-
-If you need local configuration, create a `.env` file in the project root. The app reads environment variables from `.env` automatically. Common settings include:
+Common settings include:
 
 ```env
 APP_NAME=backend-eng-assignment
-APP_HOST=127.0.0.1
+APP_HOST=0.0.0.0
 APP_PORT=8000
-APP_RELOAD=true
+APP_RELOAD=false
 LOG_LEVEL=INFO
 LOG_API_REQUESTS=true
 DATABASE_DRIVER=postgresql+asyncpg
-POSTGRES_USER=
-POSTGRES_PASSWORD=
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_DB=
-JWT_SECRET_KEY=
+POSTGRES_DB=backend_eng_assignment
+JWT_SECRET_KEY=change-me
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 ```
 
-For development, the defaults are enough to start the app unless the endpoint you are using requires a database or JWT configuration.
+## Run the application with Docker Compose
 
-## Run the application
-
-Start the FastAPI server with:
+Start the API and PostgreSQL database with:
 
 ```bash
-uv run python main.py
+docker compose up --build
 ```
 
-By default, the app runs at:
+Docker Compose will:
+
+- build the API image from `Dockerfile`
+- start a PostgreSQL 16 container named `db`
+- wait for PostgreSQL to become healthy
+- run Alembic migrations with `alembic upgrade head`
+- start the FastAPI app with Uvicorn
+
+By default, the app is available at:
 
 ```text
 http://127.0.0.1:8000
@@ -57,6 +66,44 @@ Useful endpoints:
 - `GET /` — confirms the application is running
 - `GET /health` — health check endpoint
 - `GET /docs` — interactive FastAPI/OpenAPI documentation
+
+Run the containers in the background with:
+
+```bash
+docker compose up --build -d
+```
+
+View logs with:
+
+```bash
+docker compose logs -f api
+```
+
+Stop the app with:
+
+```bash
+docker compose down
+```
+
+To also remove the PostgreSQL data volume, run:
+
+```bash
+docker compose down -v
+```
+
+## Run the application locally
+
+Install the project dependencies, including development/test dependencies:
+
+```bash
+uv sync --dev
+```
+
+Start the FastAPI server with:
+
+```bash
+uv run python main.py
+```
 
 You can also run the ASGI app directly with Uvicorn:
 
@@ -82,18 +129,37 @@ uv run alembic revision --autogenerate -m "describe change"
 
 ## Run tests
 
-Run the test suite with:
+Install development/test dependencies first if you have not already:
+
+```bash
+uv sync --dev
+```
+
+Run the full test suite with:
 
 ```bash
 uv run pytest
 ```
 
-To run a specific test file or directory:
+Run a specific test directory or file by passing its path to `pytest`:
 
 ```bash
 uv run pytest tests/api
 uv run pytest tests/auth
 uv run pytest tests/infrastructure
+uv run pytest tests/api/v1/test_auth.py
+```
+
+Run a single test by using pytest's node id syntax:
+
+```bash
+uv run pytest tests/api/v1/test_auth.py::test_login_returns_access_and_refresh_tokens
+```
+
+Run tests with coverage reporting:
+
+```bash
+uv run pytest --cov=app
 ```
 
 ## Project structure
