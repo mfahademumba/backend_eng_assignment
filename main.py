@@ -6,12 +6,18 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import router as api_v1_router
+from app.logging import configure_logging
+from app.middleware.logging import log_api_request_middleware
 from app.schemas.common import ErrorDetail, ResponseBuilder
 from config.settings import get_settings
 
-logger = logging.getLogger(__name__)
 settings = get_settings()
+configure_logging(settings)
+logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
+
+if settings.log_api_requests:
+    app.middleware("http")(log_api_request_middleware)
 
 
 @app.exception_handler(StarletteHTTPException)

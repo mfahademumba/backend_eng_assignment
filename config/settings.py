@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, alias="APP_PORT")
     app_reload: bool = Field(default=True, alias="APP_RELOAD")
 
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_api_requests: bool = Field(default=True, alias="LOG_API_REQUESTS")
+
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
     jwt_secret_key: SecretStr | None = Field(default=None, alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
