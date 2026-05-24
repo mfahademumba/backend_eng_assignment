@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import importlib
 import os
 import uuid
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -26,6 +29,12 @@ class TokenPayload(BaseModel):
     workspace_id: uuid.UUID
     role: UserRole
     token_version: int
+
+
+class TokenPair(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 
 class AuthenticatedUser(BaseModel):
@@ -54,7 +63,32 @@ def hash_password(password: str) -> str:
     return f"bcrypt${hashed_password.decode('utf-8')}"
 
 
-def decode_access_token(token: str) -> TokenPayload:
+def verify_password(password: str, password_hash: str) -> bool:
+    password_bytes = password.encode("utf-8")
+
+    if password_hash.startswith("bcrypt$"):
+        try:
+            bcrypt = importlib.import_module("bcrypt")
+        except ModuleNotFoundError:
+            return False
+        stored_hash = password_hash.removeprefix("bcrypt$").encode("utf-8")
+        return bool(bcrypt.checkpw(password_bytes, stored_hash))
+
+    if password_hash.startswith("scrypt$"):
+        try:
+            _prefix, encoded_salt, encoded_hash = password_hash.split("$", 2)
+            salt = base64.b64decode(encoded_salt.encode("utf-8"))
+            expected_hash = base64.b64decode(encoded_hash.encode("utf-8"))
+        except (ValueError, UnicodeEncodeError):
+            return False
+
+        actual_hash = hashlib.scrypt(password_bytes, salt=salt, n=16384, r=8, p=1)
+        return hmac.compare_digest(actual_hash, expected_hash)
+
+    return False
+
+
+def _get_jwt_secret() -> str:
     settings = get_settings()
     secret = (
         settings.jwt_secret_key.get_secret_value()
@@ -66,6 +100,54 @@ def decode_access_token(token: str) -> TokenPayload:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="JWT_SECRET_KEY is not configured.",
         )
+    return secret
+
+
+def _build_token_payload(
+    *,
+    user: AuthenticatedUser,
+    expires_delta: timedelta,
+    token_type: str,
+) -> dict[str, Any]:
+    expires_at = datetime.now(tz=UTC) + expires_delta
+    return {
+        "user_email": user.email,
+        "workspace_id": str(user.workspace_id),
+        "role": user.role.value,
+        "token_version": user.token_version,
+        "type": token_type,
+        "exp": expires_at,
+    }
+
+
+def create_token_pair(user: AuthenticatedUser) -> TokenPair:
+    settings = get_settings()
+    secret = _get_jwt_secret()
+    access_token_expire_minutes = getattr(settings, "access_token_expire_minutes", 15)
+    refresh_token_expire_days = getattr(settings, "refresh_token_expire_days", 7)
+    access_payload = _build_token_payload(
+        user=user,
+        expires_delta=timedelta(minutes=access_token_expire_minutes),
+        token_type="access",
+    )
+    refresh_payload = _build_token_payload(
+        user=user,
+        expires_delta=timedelta(days=refresh_token_expire_days),
+        token_type="refresh",
+    )
+    return TokenPair(
+        access_token=jwt.encode(
+            access_payload, secret, algorithm=settings.jwt_algorithm
+        ),
+        refresh_token=jwt.encode(
+            refresh_payload, secret, algorithm=settings.jwt_algorithm
+        ),
+    )
+
+
+def decode_access_token(token: str) -> TokenPayload:
+    settings = get_settings()
+    secret = _get_jwt_secret()
 
     try:
         payload = jwt.decode(token, secret, algorithms=[settings.jwt_algorithm])
@@ -89,8 +171,7 @@ def decode_access_token(token: str) -> TokenPayload:
         ) from exc
 
 
-async def get_current_admin_for_workspace(
-    workspace_id: uuid.UUID,
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_db_session),
 ) -> AuthenticatedUser:
@@ -101,12 +182,6 @@ async def get_current_admin_for_workspace(
         )
 
     token_payload = decode_access_token(credentials.credentials)
-    if token_payload.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this workspace.",
-        )
-
     user_repository = UserRepository(session)
     user = await user_repository.get_by_workspace_id_and_email(
         workspace_id=token_payload.workspace_id,
@@ -124,10 +199,23 @@ async def get_current_admin_for_workspace(
             detail="Access token is no longer valid.",
         )
 
-    if user.role != UserRole.ADMIN or token_payload.role != UserRole.ADMIN:
+    return AuthenticatedUser.model_validate(user)
+
+
+async def get_current_admin_for_workspace(
+    workspace_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
+    if current_user.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this workspace.",
+        )
+
+    if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access is required.",
         )
 
-    return AuthenticatedUser.model_validate(user)
+    return current_user

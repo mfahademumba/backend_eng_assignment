@@ -57,3 +57,9 @@ class UserRepository:
         await self.session.commit()
         await self.session.refresh(user)
         return user
+
+    async def increment_token_version(self, user: User) -> User:
+        user.token_version += 1
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
