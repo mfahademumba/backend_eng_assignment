@@ -13,6 +13,7 @@ from app.models import PolicyEffect, UserRole
 from app.schemas.policy import PolicyCreateRequest
 from app.schemas.resource import ResourceUpdateRequest
 from app.schemas.user import WorkspaceUserCreateRequest
+from app.schemas.workspace import WorkspaceCreateRequest
 
 valid_schema_text = st.text(
     alphabet=string.ascii_letters + string.digits + " _-",
@@ -182,6 +183,57 @@ def test_workspace_user_role_must_be_valid_user_role(role: Any) -> None:
             password="StrongPass1",
             role=role,
             full_name="User Name",
+        )
+
+
+@given(email=st.text(min_size=1).filter(lambda value: "@" not in value))
+def test_workspace_user_create_rejects_invalid_email(email: str) -> None:
+    with pytest.raises(ValidationError):
+        WorkspaceUserCreateRequest(
+            email=email,
+            password="StrongPass1",
+            role=UserRole.USER,
+            full_name="User Name",
+        )
+
+
+@given(email=st.text(min_size=1).filter(lambda value: "@" not in value))
+def test_workspace_create_rejects_invalid_admin_email(email: str) -> None:
+    with pytest.raises(ValidationError):
+        WorkspaceCreateRequest(
+            name="Acme Workspace",
+            admin_email=email,
+            admin_password="StrongPass1",
+        )
+
+
+@given(
+    effect=st.text(min_size=1).filter(
+        lambda value: value not in {effect.value for effect in PolicyEffect}
+    )
+)
+def test_policy_effect_must_be_valid_policy_effect(effect: Any) -> None:
+    with pytest.raises(ValidationError):
+        PolicyCreateRequest(
+            name="Policy",
+            effect=effect,
+            target_type="role",
+            target_value=UserRole.USER.value,
+            priority=1,
+        )
+
+
+@given(
+    target_type=st.text(min_size=1).filter(lambda value: value not in {"role", "user"})
+)
+def test_policy_target_type_must_be_supported(target_type: Any) -> None:
+    with pytest.raises(ValidationError):
+        PolicyCreateRequest(
+            name="Policy",
+            effect=PolicyEffect.ALLOW,
+            target_type=target_type,
+            target_value=UserRole.USER.value,
+            priority=1,
         )
 
 

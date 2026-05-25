@@ -24,3 +24,11 @@ dev = [
     "pytest-cov>=7.1.0",
     "schemathesis>=4.19.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--cov=app --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = [
+    "app/migrations/*",
+]

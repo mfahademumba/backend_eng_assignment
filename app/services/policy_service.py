@@ -40,6 +40,7 @@ class PolicyService:
 
         policy = Policy(
             workspace_id=workspace_id,
+            resource_id=resource_id,
             name=payload.name,
             effect=payload.effect,
             target_type=payload.target_type,
