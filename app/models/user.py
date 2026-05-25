@@ -30,7 +30,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role_enum", native_enum=True),
         nullable=False,
-        server_default=text("'user'"),
+        server_default=text("'USER'"),
     )
     token_version: Mapped[int] = mapped_column(
         Integer,
