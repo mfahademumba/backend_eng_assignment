@@ -18,11 +18,19 @@ def configure_logging(settings: Settings) -> None:
                 "format": ("%(asctime)s %(levelname)s [%(name)s] %(message)s"),
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
+            "uvicorn": {
+                "format": ("%(asctime)s %(levelname)s %(message)s"),
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
         },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
                 "formatter": "default",
+            },
+            "uvicorn": {
+                "class": "logging.StreamHandler",
+                "formatter": "uvicorn",
             },
         },
         "root": {
@@ -39,16 +47,19 @@ def configure_logging(settings: Settings) -> None:
                 "propagate": True,
             },
             "uvicorn": {
+                "handlers": ["uvicorn"],
                 "level": log_level,
-                "propagate": True,
+                "propagate": False,
             },
             "uvicorn.error": {
+                "handlers": ["uvicorn"],
                 "level": log_level,
-                "propagate": True,
+                "propagate": False,
             },
             "uvicorn.access": {
+                "handlers": ["uvicorn"],
                 "level": log_level,
-                "propagate": True,
+                "propagate": False,
             },
         },
     }
