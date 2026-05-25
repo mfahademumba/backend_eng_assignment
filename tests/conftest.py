@@ -72,7 +72,9 @@ class FakeAsyncSession:
                     raise IntegrityError(
                         "duplicate key value violates unique constraint uq_users_workspace_email",
                         params=None,
-                        orig=None,
+                        orig=Exception(
+                            "duplicate key value violates unique constraint uq_users_workspace_email"
+                        ),
                     )
                 self.users[user_key] = obj
             elif obj.__class__.__name__ == "Resource":
