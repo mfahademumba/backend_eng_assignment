@@ -267,3 +267,34 @@ def test_admin_can_update_and_delete_resource(client, fake_session, make_token) 
     assert delete_response.status_code == 200
     assert delete_response.json()["data"]["resource_id"] == str(resource.id)
     assert resource.id not in fake_session.resources
+
+
+def test_deleting_resource_cascades_to_effective_policies(
+    client, fake_session, make_token
+) -> None:
+    workspace_id = uuid4()
+    admin = seed_user(fake_session, workspace_id=workspace_id)
+    resource = seed_resource(fake_session, workspace_id=workspace_id)
+    policy = attach_policy(
+        fake_session,
+        workspace_id=workspace_id,
+        resource_id=resource.id,
+        target_type="role",
+        target_value="user",
+    )
+    token = make_token(
+        user_email=admin.email, workspace_id=workspace_id, role=admin.role
+    )
+
+    response = client.delete(
+        f"/api/v1/workspaces/{workspace_id}/resources/{resource.id}/",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert resource.id not in fake_session.resources
+    assert policy.id not in fake_session.policies
+    assert not any(
+        effective_policy.resource_id == resource.id
+        for effective_policy in fake_session.effective_policies.values()
+    )

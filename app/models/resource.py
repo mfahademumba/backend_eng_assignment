@@ -11,6 +11,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.effective_policy import EffectivePolicy
+    from app.models.policy import Policy
     from app.models.workspace import Workspace
 
 
@@ -32,6 +33,12 @@ class Resource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     workspace: Mapped["Workspace"] = relationship(
         "Workspace", back_populates="resources"
+    )
+    policies: Mapped[list["Policy"]] = relationship(
+        "Policy",
+        back_populates="resource",
+        cascade="all, delete-orphan",
+        overlaps="workspace,policies",
     )
     effective_policies: Mapped[list["EffectivePolicy"]] = relationship(
         "EffectivePolicy",

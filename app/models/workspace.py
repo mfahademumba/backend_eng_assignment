@@ -28,6 +28,7 @@ class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         "Policy",
         back_populates="workspace",
         cascade="all, delete-orphan",
+        overlaps="resource",
     )
     resources: Mapped[list["Resource"]] = relationship(
         "Resource",

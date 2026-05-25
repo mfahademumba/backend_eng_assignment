@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -19,6 +20,7 @@ from app.models.base import Base, PolicyEffect, TimestampMixin, UUIDPrimaryKeyMi
 
 if TYPE_CHECKING:
     from app.models.effective_policy import EffectivePolicy
+    from app.models.resource import Resource
     from app.models.workspace import Workspace
 
 
@@ -27,6 +29,11 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("priority > 0", name="ck_policies_priority_positive"),
         UniqueConstraint("id", "workspace_id", name="uq_policies_id_workspace_id"),
+        ForeignKeyConstraint(
+            ["resource_id", "workspace_id"],
+            ["resources.id", "resources.workspace_id"],
+            ondelete="CASCADE",
+        ),
     )
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
@@ -34,6 +41,7 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
     )
+    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     effect: Mapped[PolicyEffect] = mapped_column(
         Enum(PolicyEffect, name="policy_effect_enum", native_enum=True),
@@ -45,6 +53,11 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     workspace: Mapped["Workspace"] = relationship(
         "Workspace", back_populates="policies"
+    )
+    resource: Mapped["Resource"] = relationship(
+        "Resource",
+        back_populates="policies",
+        overlaps="workspace,resources",
     )
     effective_policies: Mapped[list["EffectivePolicy"]] = relationship(
         "EffectivePolicy",

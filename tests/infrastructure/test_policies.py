@@ -141,6 +141,36 @@ def test_non_admin_cannot_create_resource_policy(
     assert response.json()["message"] == "Admin access is required."
 
 
+def test_create_policy_returns_404_for_nonexistent_resource(
+    client, fake_session, make_token
+) -> None:
+    workspace, admin_user, _resource = seed_workspace_admin_resource(fake_session)
+    missing_resource_id = uuid4()
+    token = make_token(
+        user_email=admin_user.email,
+        workspace_id=workspace.id,
+        role=UserRole.ADMIN,
+    )
+
+    response = client.post(
+        f"/api/v1/workspaces/{workspace.id}/resources/{missing_resource_id}/policies/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Allow developers",
+            "effect": "allow",
+            "target_type": "role",
+            "target_value": "user",
+            "priority": 10,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["message"] == "Resource not found."
+    assert not any(
+        policy.name == "Allow developers" for policy in fake_session.policies.values()
+    )
+
+
 def test_policy_create_validates_user_target_uuid(
     client, fake_session, make_token
 ) -> None:

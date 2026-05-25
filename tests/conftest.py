@@ -12,6 +12,7 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from sqlalchemy.exc import IntegrityError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -65,7 +66,17 @@ class FakeAsyncSession:
             if obj.__class__.__name__ == "Workspace":
                 self.workspaces[obj.id] = obj
             elif obj.__class__.__name__ == "User":
-                self.users[(obj.workspace_id, obj.email)] = obj
+                user_key = (obj.workspace_id, obj.email)
+                existing_user = self.users.get(user_key)
+                if existing_user is not None and existing_user is not obj:
+                    raise IntegrityError(
+                        "duplicate key value violates unique constraint uq_users_workspace_email",
+                        params=None,
+                        orig=Exception(
+                            "duplicate key value violates unique constraint uq_users_workspace_email"
+                        ),
+                    )
+                self.users[user_key] = obj
             elif obj.__class__.__name__ == "Resource":
                 self.resources[obj.id] = obj
             elif obj.__class__.__name__ == "Policy":
@@ -136,19 +147,27 @@ class FakeAsyncSession:
                     return resource
             return None
 
-        policy_id = entity_id
-        if (
-            policy_id is not None
-            and workspace_id is not None
-            and resource_id is not None
-        ):
-            for effective_policy in self.effective_policies.values():
+        if entity_name == "Policy":
+            policy_id = entity_id
+            if (
+                policy_id is not None
+                and workspace_id is not None
+                and resource_id is not None
+            ):
+                policy = self.policies.get(policy_id)
                 if (
-                    effective_policy.workspace_id == workspace_id
-                    and effective_policy.resource_id == resource_id
-                    and effective_policy.policy_id == policy_id
+                    policy is not None
+                    and policy.workspace_id == workspace_id
+                    and getattr(policy, "resource_id", None) == resource_id
                 ):
-                    return self.policies.get(policy_id)
+                    return policy
+                for effective_policy in self.effective_policies.values():
+                    if (
+                        effective_policy.workspace_id == workspace_id
+                        and effective_policy.resource_id == resource_id
+                        and effective_policy.policy_id == policy_id
+                    ):
+                        return self.policies.get(policy_id)
 
         return None
 
@@ -164,12 +183,19 @@ class FakeAsyncSession:
 
         if entity_name == "Policy":
             policies = [
-                self.policies[effective_policy.policy_id]
-                for effective_policy in self.effective_policies.values()
-                if effective_policy.workspace_id == workspace_id
-                and effective_policy.resource_id == resource_id
-                and effective_policy.policy_id in self.policies
+                policy
+                for policy in self.policies.values()
+                if policy.workspace_id == workspace_id
+                and getattr(policy, "resource_id", None) == resource_id
             ]
+            if not policies:
+                policies = [
+                    self.policies[effective_policy.policy_id]
+                    for effective_policy in self.effective_policies.values()
+                    if effective_policy.workspace_id == workspace_id
+                    and effective_policy.resource_id == resource_id
+                    and effective_policy.policy_id in self.policies
+                ]
             policies.sort(
                 key=lambda policy: (-policy.priority, policy.created_at, str(policy.id))
             )
@@ -233,6 +259,18 @@ class FakeAsyncSession:
                 workspace_id is None or resource.workspace_id == workspace_id
             ):
                 self.resources.pop(resource_id, None)
+                policy_ids_for_resource = {
+                    effective_policy.policy_id
+                    for effective_policy in self.effective_policies.values()
+                    if effective_policy.resource_id == resource_id
+                }
+                policy_ids_for_resource.update(
+                    policy_id
+                    for policy_id, policy in self.policies.items()
+                    if getattr(policy, "resource_id", None) == resource_id
+                )
+                for policy_id in policy_ids_for_resource:
+                    self.policies.pop(policy_id, None)
                 for effective_policy_id, effective_policy in list(
                     self.effective_policies.items()
                 ):
@@ -247,14 +285,17 @@ class FakeAsyncSession:
                 workspace_id is not None and policy.workspace_id != workspace_id
             ):
                 continue
+            if (
+                resource_id is not None
+                and getattr(policy, "resource_id", resource_id) != resource_id
+            ):
+                continue
             matching_effective_policies = [
                 (effective_policy_id, effective_policy)
                 for effective_policy_id, effective_policy in self.effective_policies.items()
                 if effective_policy.policy_id == policy_id
                 and (resource_id is None or effective_policy.resource_id == resource_id)
             ]
-            if not matching_effective_policies:
-                continue
             self.policies.pop(policy_id, None)
             for effective_policy_id, _effective_policy in matching_effective_policies:
                 self.effective_policies.pop(effective_policy_id, None)

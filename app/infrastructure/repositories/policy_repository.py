@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -39,11 +39,9 @@ class PolicyRepository:
     ) -> list[Policy]:
         result = await self.session.scalars(
             select(Policy)
-            .join(EffectivePolicy, EffectivePolicy.policy_id == Policy.id)
             .where(
                 Policy.workspace_id == workspace_id,
-                EffectivePolicy.workspace_id == workspace_id,
-                EffectivePolicy.resource_id == resource_id,
+                Policy.resource_id == resource_id,
             )
             .order_by(Policy.priority.desc(), Policy.created_at.asc(), Policy.id.asc())
         )
@@ -75,13 +73,10 @@ class PolicyRepository:
         policy_id: uuid.UUID,
     ) -> Policy | None:
         return await self.session.scalar(
-            select(Policy)
-            .join(EffectivePolicy, EffectivePolicy.policy_id == Policy.id)
-            .where(
+            select(Policy).where(
                 Policy.id == policy_id,
                 Policy.workspace_id == workspace_id,
-                EffectivePolicy.workspace_id == workspace_id,
-                EffectivePolicy.resource_id == resource_id,
+                Policy.resource_id == resource_id,
             )
         )
 
@@ -92,16 +87,11 @@ class PolicyRepository:
         resource_id: uuid.UUID,
         policy_id: uuid.UUID,
     ) -> None:
-        linked_to_resource = exists().where(
-            EffectivePolicy.policy_id == Policy.id,
-            EffectivePolicy.workspace_id == workspace_id,
-            EffectivePolicy.resource_id == resource_id,
-        )
         await self.session.execute(
             delete(Policy).where(
                 Policy.id == policy_id,
                 Policy.workspace_id == workspace_id,
-                linked_to_resource,
+                Policy.resource_id == resource_id,
             )
         )
         await self.session.commit()

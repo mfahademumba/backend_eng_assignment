@@ -162,6 +162,61 @@ Run tests with coverage reporting:
 uv run pytest --cov=app
 ```
 
+### Run database integration tests
+
+The integration tests in `tests/integration` use a real PostgreSQL database to verify Alembic migrations, SQLAlchemy mappings, database constraints, foreign keys, and cascade behavior. The expected flow is to run PostgreSQL through Docker Compose and run pytest locally.
+
+The tests are skipped unless `TEST_DATABASE_URL` is set. Use a dedicated test database only: the URL must contain `_test`. The test database must exist before pytest starts; the tests then run `alembic upgrade head` to create or update the application tables and truncate those tables between tests.
+
+Start the Docker Compose database service:
+
+```bash
+docker compose up -d db
+```
+
+Create the dedicated test database inside the container:
+
+```bash
+docker compose exec -T db createdb -U postgres backend_eng_assignment_test
+```
+
+If the database already exists, `createdb` will print an error. That is safe to ignore, or you can recreate it with:
+
+```bash
+docker compose exec -T db dropdb -U postgres --if-exists backend_eng_assignment_test
+docker compose exec -T db createdb -U postgres backend_eng_assignment_test
+```
+
+Set `TEST_DATABASE_URL` in your `.env` file:
+
+```env
+TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/backend_eng_assignment_test
+```
+
+Run the integration tests by loading `.env` first:
+
+```bash
+set -a; . ./.env; set +a; uv run pytest tests/integration
+```
+
+To run everything, including DB integration tests, load `.env` and run the full suite:
+
+```bash
+set -a; . ./.env; set +a; uv run pytest
+```
+
+When you are done, stop the database service with:
+
+```bash
+docker compose down
+```
+
+To remove all local Postgres data, including the test database, remove the Docker volume too:
+
+```bash
+docker compose down -v
+```
+
 ## Project structure
 
 ```text
