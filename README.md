@@ -249,4 +249,6 @@ curl -X POST http://localhost:8000/api/v1/access-check/ \
 ```
 
 ## Assumptions made
-
+- The folder structure mentioned in the Assignment Requirements document was assumed to be based on Django. Therefore, I took the liberty to adjust it according to Layered acrchitecture patterns.
+- It was assumed that the Multi-tenant architecture should be able to support large number of workspaces not just a handful.
+- The Assignment Requirements document refers to 'Resources' on which policies were to be applied. This was assumed to be a dedicated 'Resources' table in the DB.
