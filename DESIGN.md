@@ -1,15 +1,26 @@
 # Design for Multi-workspace Resource Access Manager API
 
 
-## DB system (PostgreSQL):
+## Multi-tenancy strategy
 
-- The multi-workspace aspect of resource management is handled using a pooled approach, i.e. all workspaces are part of the same database and schema.
-  - This approach is chosen so that a large number of workspaces can be handled in a straightforward way.
-    - Multiple schemas would require multiple migrations to run.
-    - This would be inconvenient to manage for a large number of workspaces.
-    - Therefore, the workspaces will be part of the same schema.
-  - For isolation of workspaces and relevant users in the database, email and workspace are protected with a composite unique constraint.
-  - Cross-workspace data leakage is prevented in the infrastructure layer. Here, workspace_id is a necessary requirement to check whether resources can be accessed.
+The API uses a pooled/shared-schema multi-tenancy approach. All workspaces are stored in the same PostgreSQL database and schema, and tenant isolation is enforced through `workspace_id` columns, composite constraints, and application-layer authorization checks.
+
+This approach was chosen over database-per-tenant or schema-per-tenant isolation because it is simpler to operate for a large number of workspaces:
+
+- Database-per-tenant provides strong isolation, but adds operational overhead for provisioning, migrations, backups, connection management, and monitoring.
+- Schema-per-tenant provides moderate isolation, but still requires running and tracking migrations across many schemas.
+- Shared-schema tenancy keeps migrations and connection management simple, and works well for many small-to-medium workspaces.
+
+The trade-off is that isolation depends on consistently scoping all workspace-owned data access by `workspace_id`. To reduce cross-workspace leakage risk:
+
+- Every tenant-owned table includes `workspace_id`.
+- User email uniqueness is scoped by `(workspace_id, email)`, allowing the same email to exist in multiple workspaces while preventing duplicates inside one workspace.
+- Resources and policies are referenced through workspace-scoped composite foreign keys.
+- Authenticated requests carry the user's `workspace_id` in the token claims.
+- Repository/service queries must filter by the authenticated `workspace_id` when reading or mutating workspace-scoped data.
+
+
+## DB system (PostgreSQL):
 
 
 ## Schema Design
@@ -113,25 +124,58 @@ Additional notes:
 
 ## Auth system
 
-- Users will signin using email and passwords
-- They will received access token and refresh token for login
-- They will need to have access token for authenticated routes
-- JWT claim would include user_email, workspace_id, role, token_version
-- Passwords will be hashed using bcrypt
-- Validation will happen through middleware approach
-- Access token expiry would be 15 minutes whereas refresh token expiry would be 7 days (both expiries being configurable through environment variables)
-- After refresh token expires, user will have to login again
-- If token version does not match the one in the DB, auth fails
-- If user logs out the version is incremented to disallow the same token to be used again.
-- When user logs in again they receive a token based on the current token version.
-- Currently logging out is the only way token version would be incremented.
+- Users sign in using email and password.
+- On successful login, the API issues two JWTs:
+  - An access token for authenticated API routes.
+  - A refresh token for obtaining a new access token without logging in again.
+- JWT claims include `user_email`, `workspace_id`, `role`, `token_version`, expiration, and token type. A user identifier should also be included as the subject claim where applicable.
+- Passwords are hashed using Argon2 before storage. Plaintext passwords are never stored.
+- Token validation happens through middleware.
+- Access token expiry is 15 minutes and refresh token expiry is 7 days. Both values are configurable through environment variables.
+- After the refresh token expires, the user must log in again.
+- Refresh tokens are not stored directly in the database. Instead, token invalidation is handled using the `token_version` stored on the user row.
+- If the token version in the JWT does not match the current value in the database, authentication fails.
+- If a user logs out, the version is incremented to prevent previously issued access and refresh tokens from being used again.
+- When the user logs in again, new tokens are issued with the current token version.
+- Currently, logging out is the only action that increments `token_version`.
+
+Token storage expectations:
+
+- API clients send access tokens using the `Authorization: Bearer <token>` header.
+- For browser clients, the safest refresh-token storage approach would be an HttpOnly, Secure, SameSite cookie to reduce exposure to XSS. Access tokens should ideally be stored in memory and not in long-lived browser storage.
+- For non-browser clients, tokens should be stored using the platform's secure credential storage.
+- Tokens must not be logged or exposed in API responses beyond the login/refresh response.
+
+Security considerations:
+
+- JWT signing secrets must be strong and stored in environment variables or a secret manager.
+- Access and refresh tokens should include a token type claim so refresh tokens cannot be used on access-token-only routes.
+- Production deployments should use HTTPS so tokens are not transmitted in plaintext.
+- Short-lived access tokens reduce the impact of access-token theft.
+- `token_version` provides coarse-grained revocation for all active sessions of a user.
+
+
+## Authorization flow
+
+Authorization is enforced in layers so both API permissions and workspace isolation are checked before data is returned or modified.
+
+1. The request includes an access token in the `Authorization` header.
+2. Authentication middleware verifies the JWT signature, expiration, token type, and required claims.
+3. The middleware loads or validates the user using the token claims, including `workspace_id` and `token_version`.
+4. If `token_version` does not match the database value, the request is rejected.
+5. Route-level authorization middleware checks role requirements for protected API operations.
+6. Admin-only routes require the authenticated user's role to be `admin` in the current workspace.
+7. Workspace-scoped service/repository methods query data using the authenticated `workspace_id`, resource ids or policy ids alone are not trusted.
+8. For resource access decisions, the policy engine evaluates only policies linked to the requested resource within the authenticated workspace.
+9. If the resource does not belong to the authenticated workspace, access is rejected rather than falling back to policy evaluation.
 
 
 ## Role based access to APIs
 
-- Role based access will be validated through middleware approach
-  - Two roles: 'admin' and 'user'
-  - These roles are per workspace
+- Role based access is validated through middleware.
+  - Two roles: `admin` and `user`.
+  - These roles are per workspace.
+  - An admin in one workspace does not automatically have permissions in another workspace.
 
 ## Policy validation strategy
 Core logic is implemented in `policy_engine.py`
@@ -143,27 +187,73 @@ As per requirement the following implementation is necessary:
 4. Default Deny: If no policy matches the user or role, access is denied by default.
 
 When user requests a resource policy validation would happen based on this flow assuming auth and workspace checks are cleared:
-1. Policies are fetched from DB against the resource id requested going through the junction table (Effective Policies).
-2. The policies fetched will be sorted in descending order when queried for.
-3. Outcome determined from first available policy either allowed or denied.
-4. Default would be denied against user role considering admins can access all resources.
+1. Policies are fetched from DB against the requested resource id and authenticated workspace id through the junction table (`effective_policies`).
+2. The policies fetched are sorted by priority in descending order.
+3. Each policy is checked to determine whether it matches the authenticated user:
+   - If `target_type = 'user'`, the policy matches only when `target_value` equals the authenticated user's UUID.
+   - If `target_type = 'role'`, the policy matches only when `target_value` equals the authenticated user's role.
+4. The first matching policy determines the outcome:
+   - `ALLOW` grants access.
+   - `DENY` rejects access.
+5. If no policy matches, access is denied by default.
+6. Admin users bypass policy evaluation for resources inside their own workspace.
+
+If two policies have the same priority, the ordering should be deterministic, for example by `created_at` or `id`. This should be enforced in the query to avoid inconsistent first-match results.
 
 Policy rows are workspace-scoped and are linked to resources through `effective_policies`. Deleting a resource cascades to its effective policy links. The policy deletion behavior in application code removes the policy only when no remaining effective policy links exist for that policy in the workspace.
 
 
 ## Security measures
-- To prevent SQL injection, ORM is used for interacting with the DB (SQLAlchemy in particular)
-- Passwords are hashed before storage in DB
-- When user logs out, all access and refresh tokens are invalidated by using a token versioning system. On logout the token version stored in the DB is incremented.
-  - All following login attempts require the token to have this new token version otherwise they are invalid.
+- SQL injection is mitigated by using SQLAlchemy ORM queries instead of string-concatenated SQL.
+- Passwords are hashed using Argon2 before storage. Plaintext passwords are never stored.
+- JWTs are signed and include expiration claims. Access tokens are intentionally short-lived.
+- Refresh/access token invalidation is supported through `token_version`.
+- When a user logs out, all access and refresh tokens for that user are invalidated by incrementing the token version stored in the database.
+  - Future requests require the token's version to match the current database value, otherwise authentication fails.
+- Workspace isolation is enforced by requiring `workspace_id` in tenant-scoped tables and queries.
+- Workspace-scoped composite foreign keys prevent linking a policy from one workspace to a resource in another workspace.
+- Admin-only routes are protected through role middleware.
+- Sensitive fields such as `password_hash` should not be returned in API responses.
+- Default-deny policy evaluation prevents accidental access when no matching policy exists.
+- Production deployments should use HTTPS and secure secret management for JWT signing keys.
+- Role changes and privileged operations should be restricted to admins to avoid privilege escalation.
 
 
-## Tradeoffs
-I would do the following if I had more time:
-- Currently logging out of one device logs out all users. I would implement a system where user can securely log out of one device at a time.
-- Adding a logout of all devices feature separately.
+## Trade-offs
+I made the following trade-offs to keep the implementation focused and achievable within the assignment timeline:
+
+- Shared-schema tenancy was chosen for simplicity and speed. This reduces operational complexity, but it means every query must be carefully scoped by `workspace_id`.
+- Refresh tokens are handled with stateless JWTs plus `token_version` instead of storing individual refresh-token sessions. This is simpler, but logging out from one device invalidates all active sessions for that user.
+- Per-device logout is not supported yet. With more time, I would store refresh-token/session records per device and support both single-device logout and logout from all devices.
+- The app is kept monolithic. This is easier to develop and deploy for the assignment, but auth, policy evaluation, and resource management scale together.
+- Policy priority ties need deterministic ordering. With more time, I would enforce a secondary order or prevent conflicting same-priority policies through constraints/validation.
 
 
-## Scaleability Considerations
-- FastAPI is used in an asynchronous fashion to improve concurrency allowing multiple requests to be handled at the same time.
-- Currently monolithic architecture is used for the app. If something crashes, the entire service goes down.
+## Scalability Considerations
+- FastAPI is used in an asynchronous fashion to improve concurrency, allowing multiple I/O-bound requests to be handled efficiently.
+- The shared-schema model scales well for many small-to-medium workspaces because migrations and connection management remain simple.
+- The first likely bottleneck would be database load, especially policy evaluation queries that join `effective_policies` and `policies`.
+- Large workspaces with many resources and policies could make policy evaluation slower unless the relevant composite indexes are present.
+- If every authenticated request checks `token_version` against the database, user lookup/auth validation can become a hot path.
+- The monolithic architecture means all API areas scale together. If one part of the app has high load or crashes, it can affect the whole service.
+- List endpoints should use pagination to avoid returning large workspace datasets in a single response.
+
+To improve scalability, I would add:
+
+- Composite indexes for workspace/resource/policy lookups.
+- Caching for policy evaluation results where safe.
+- Short-TTL caching for user/token-version checks.
+- Read replicas for read-heavy workloads.
+- Horizontal scaling behind a load balancer.
+- Database partitioning by `workspace_id` or hash partitioning if tables become very large.
+- Background workers for expensive or non-request-critical operations.
+
+
+## Known limitations
+
+- Per-device logout is not supported. Logging out increments `token_version`, which invalidates all active tokens for that user.
+- Refresh tokens are not stored individually, so suspicious sessions cannot be revoked one at a time.
+- Tenant isolation depends on application-layer checks and schema constraints.
+- Policy evaluation may become slow for resources with many linked policies unless properly indexed or cached.
+- The monolithic architecture means a failure in one area can affect the entire API.
+- Token invalidation is coarse-grained at the user level rather than session/device level.
