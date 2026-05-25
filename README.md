@@ -61,6 +61,12 @@ By default, the app is available at:
 http://127.0.0.1:8000
 ```
 
+After the app starts, open the interactive API documentation in a browser at:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
 Useful endpoints:
 
 - `GET /` — confirms the application is running
