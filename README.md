@@ -142,10 +142,18 @@ Set `TEST_DATABASE_URL` in your `.env` file:
 TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/backend_eng_assignment_test
 ```
 
-Run the integration tests by loading `.env` first:
+Run the integration tests with the helper script:
 
 ```bash
-set -a; . ./.env; set +a; uv run pytest tests/integration
+./scripts/run-integration-tests.sh
+```
+
+The helper script loads `.env`, starts the Docker Compose database service, keeps the local database user password aligned with `TEST_DATABASE_URL`, creates the dedicated test database if it is missing, and runs `uv run pytest tests/integration`. It refuses to run unless the parsed test database name ends with `_test` and does not match `POSTGRES_DB`. This avoids failures caused by an existing Docker volume that was initialized with an older password without dropping any database.
+
+To pass additional pytest arguments, append them to the script command:
+
+```bash
+./scripts/run-integration-tests.sh -k cascade
 ```
 
 To run everything, including DB integration tests, load `.env` and run the full suite:
