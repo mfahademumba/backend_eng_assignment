@@ -64,6 +64,7 @@ def upgrade() -> None:
     op.create_table(
         "policies",
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("resource_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("effect", policy_effect_enum, nullable=False),
         sa.Column("target_type", sa.Text(), nullable=False),
@@ -161,6 +162,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("workspace_id", "email", name="uq_users_workspace_email"),
     )
+    op.create_foreign_key(
+        "fk_policies_resource_workspace",
+        "policies",
+        "resources",
+        ["resource_id", "workspace_id"],
+        ["id", "workspace_id"],
+        ondelete="CASCADE",
+    )
     op.create_table(
         "effective_policies",
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -208,8 +217,8 @@ def downgrade() -> None:
     bind = op.get_bind()
     op.drop_table("effective_policies")
     op.drop_table("users")
-    op.drop_table("resources")
     op.drop_table("policies")
+    op.drop_table("resources")
     op.drop_table("workspaces")
     policy_effect_enum.drop(bind, checkfirst=True)
     user_role_enum.drop(bind, checkfirst=True)

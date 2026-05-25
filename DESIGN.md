@@ -47,41 +47,42 @@ The repo will follow layered architecture.
 
 **Policies**
 
-| Field Name    | Type                     | Nullable | Constraints/Notes             | Default Value       |
-| :-----------: | :----------------------: | :------: | :---------------------------: | :-----------------: |
-| id            | UUID                     | No       | Primary Key                   | gen\_random\_uuid() |
-| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id) |                     |
-| name          | VARCHAR(255)             | No       |                               |                     |
-| effect        | ENUM('allow', 'deny')    | No       |                               |                     |
-| target\_type  | Text                     | No       |                               |                     |
-| target\_value | Text                     | No       |                               |                     |
-| priority      | Positive Integer         | No       |                               |                     |
-| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
-| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
+| Field Name    | Type                     | Nullable | Constraints/Notes                                                                 | Default Value       |
+| :-----------: | :----------------------: | :------: | :-------------------------------------------------------------------------------: | :-----------------: |
+| id            | UUID                     | No       | Primary Key                                                                       | gen\_random\_uuid() |
+| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id), Composite Unique Key with id                       |                     |
+| resource\_id  | UUID                     | No       | Composite Foreign Key with workspace\_id to Resources(id, workspace\_id), ON DELETE CASCADE |                     |
+| name          | VARCHAR(255)             | No       |                                                                                   |                     |
+| effect        | ENUM('allow', 'deny')    | No       |                                                                                   |                     |
+| target\_type  | Text                     | No       |                                                                                   |                     |
+| target\_value | Text                     | No       |                                                                                   |                     |
+| priority      | Positive Integer         | No       | Check constraint: priority > 0                                                    |                     |
+| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                                                   | NOW()               |
+| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                                                   | NOW()               |
 
 **Resources**
 
-| Field Name    | Type                     | Nullable | Constraints/Notes             | Default Value       |
-| :-----------: | :----------------------: | :------: | :---------------------------: | :-----------------: |
-| id            | UUID                     | No       | Primary Key                   | gen\_random\_uuid() |
-| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id) |                     |
-| name          | VARCHAR(255)             | No       |                               |                     |
-| type          | VARCHAR(255)             | No       |                               |                     |
-| status        | VARCHAR(255)             | No       |                               |                     |
-| description   | Text                     | Yes      |                               |                     |
-| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
-| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
+| Field Name    | Type                     | Nullable | Constraints/Notes                                  | Default Value       |
+| :-----------: | :----------------------: | :------: | :------------------------------------------------: | :-----------------: |
+| id            | UUID                     | No       | Primary Key, Composite Unique Key with workspace\_id | gen\_random\_uuid() |
+| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id), Composite Unique Key with id |                     |
+| name          | VARCHAR(255)             | No       |                                                    |                     |
+| type          | VARCHAR(255)             | No       |                                                    |                     |
+| status        | VARCHAR(255)             | No       |                                                    |                     |
+| description   | Text                     | Yes      |                                                    |                     |
+| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                    | NOW()               |
+| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                    | NOW()               |
 
 **Effective policies**
 
-| Field Name    | Type                     | Nullable | Constraints/Notes             | Default Value       |
-| :-----------: | :----------------------: | :------: | :---------------------------: | :-----------------: |
-| id            | UUID                     | No       | Primary Key                   | gen\_random\_uuid() |
-| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id) |                     |
-| resource\_id  | UUID                     | No       | Foreign Key to Resources(id)  |                     |
-| policies\_id  | UUID                     | No       | Foreign Key to Policies(id)   |                     |
-| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
-| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                               | NOW()               |
+| Field Name    | Type                     | Nullable | Constraints/Notes                                                              | Default Value       |
+| :-----------: | :----------------------: | :------: | :----------------------------------------------------------------------------: | :-----------------: |
+| id            | UUID                     | No       | Primary Key                                                                    | gen\_random\_uuid() |
+| workspace\_id | UUID                     | No       | Foreign Key to Workspaces(id), ON DELETE CASCADE                               |                     |
+| resource\_id  | UUID                     | No       | Composite Foreign Key with workspace\_id to Resources(id, workspace\_id), ON DELETE CASCADE |                     |
+| policies\_id  | UUID                     | No       | Composite Foreign Key with workspace\_id to Policies(id, workspace\_id), ON DELETE CASCADE |                     |
+| created\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                                                | NOW()               |
+| updated\_at   | TIMESTAMP WITH TIME ZONE | No       |                                                                                | NOW()               |
 
 
 ## Logs
@@ -125,3 +126,5 @@ When user requests a resource policy validation would happen based on this flow 
 2. The policies fetched will be sorted in descending order when queried for.
 3. Outcome determined from first available policy either allowed or denied.
 4. Default would be denied against user role considering admins can access all resources.
+
+Policy rows are resource-scoped through `policies.resource_id`. Deleting a resource cascades to its policies and effective policy links at the database level.
