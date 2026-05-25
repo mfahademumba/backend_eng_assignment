@@ -264,8 +264,8 @@ def test_admin_can_update_and_delete_resource(client, fake_session, make_token) 
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert delete_response.status_code == 200
-    assert delete_response.json()["data"]["resource_id"] == str(resource.id)
+    assert delete_response.status_code == 204
+    assert not delete_response.content
     assert resource.id not in fake_session.resources
 
 
@@ -291,7 +291,8 @@ def test_deleting_resource_cascades_to_effective_policies(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 204
+    assert not response.content
     assert resource.id not in fake_session.resources
     assert policy.id not in fake_session.policies
     assert not any(

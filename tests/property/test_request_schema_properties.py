@@ -9,7 +9,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from app.models import PolicyEffect, UserRole
+from app.models import PolicyEffect, ResourceType, UserRole
 from app.schemas.policy import PolicyCreateRequest
 from app.schemas.resource import ResourceUpdateRequest
 from app.schemas.user import WorkspaceUserCreateRequest
@@ -18,6 +18,11 @@ from app.schemas.workspace import WorkspaceCreateRequest
 valid_schema_text = st.text(
     alphabet=string.ascii_letters + string.digits + " _-",
     min_size=1,
+    max_size=255,
+)
+valid_resource_name = st.text(
+    alphabet=string.ascii_letters + string.digits + " _-",
+    min_size=3,
     max_size=255,
 )
 
@@ -123,14 +128,14 @@ def test_user_policy_target_value_must_be_valid_uuid(target_value: str) -> None:
 
 
 @given(
-    name=st.one_of(st.none(), valid_schema_text),
-    resource_type=st.one_of(st.none(), valid_schema_text),
+    name=st.one_of(st.none(), valid_resource_name),
+    resource_type=st.one_of(st.none(), st.sampled_from(list(ResourceType))),
     description=st.one_of(st.none(), st.text(max_size=5000)),
     status=st.one_of(st.none(), valid_schema_text),
 )
 def test_resource_update_requests_support_partial_updates(
     name: str | None,
-    resource_type: str | None,
+    resource_type: ResourceType | None,
     description: str | None,
     status: str | None,
 ) -> None:

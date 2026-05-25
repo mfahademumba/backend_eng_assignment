@@ -37,7 +37,6 @@ def get_user_repository(
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
     },
 )
 async def login(
@@ -68,7 +67,6 @@ async def login(
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
     },
 )
 async def refresh(

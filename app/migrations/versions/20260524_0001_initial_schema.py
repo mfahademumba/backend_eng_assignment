@@ -89,6 +89,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint("priority > 0", name="ck_policies_priority_positive"),
+        sa.CheckConstraint(
+            "target_type IN ('role', 'user')",
+            name="ck_policies_target_type_valid",
+        ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
@@ -120,12 +124,17 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "type IN ('document', 'database', 'service', 'api', 'file')",
+            name="ck_resources_type_valid",
+        ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("id", "workspace_id", name="uq_resources_id_workspace_id"),
     )
+    op.create_index("ix_resources_workspace_id", "resources", ["workspace_id"])
     op.create_table(
         "users",
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -162,6 +171,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("workspace_id", "email", name="uq_users_workspace_email"),
     )
+    op.create_index("ix_users_workspace_id_id", "users", ["workspace_id", "id"])
     op.create_foreign_key(
         "fk_policies_resource_workspace",
         "policies",
@@ -169,6 +179,16 @@ def upgrade() -> None:
         ["resource_id", "workspace_id"],
         ["id", "workspace_id"],
         ondelete="CASCADE",
+    )
+    op.create_index(
+        "ix_policies_workspace_resource",
+        "policies",
+        ["workspace_id", "resource_id"],
+    )
+    op.create_index(
+        "ix_policies_workspace_resource_priority",
+        "policies",
+        ["workspace_id", "resource_id", "priority"],
     )
     op.create_table(
         "effective_policies",
@@ -210,6 +230,11 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "resource_id", "policies_id", name="uq_effective_policies_resource_policy"
         ),
+    )
+    op.create_index(
+        "ix_effective_policies_workspace_resource",
+        "effective_policies",
+        ["workspace_id", "resource_id"],
     )
 
 

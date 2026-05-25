@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy import ForeignKeyConstraint, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,9 @@ class EffectivePolicy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             ["policies_id", "workspace_id"],
             ["policies.id", "policies.workspace_id"],
             ondelete="CASCADE",
+        ),
+        Index(
+            "ix_effective_policies_workspace_resource", "workspace_id", "resource_id"
         ),
     )
 

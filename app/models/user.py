@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint, text
+from sqlalchemy import Enum, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("workspace_id", "email", name="uq_users_workspace_email"),
+        Index("ix_users_workspace_id_id", "workspace_id", "id"),
     )
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
