@@ -246,3 +246,63 @@ async def test_repository_delete_for_resource_does_not_delete_wrong_resource_pol
 
     assert policy.id in fake_session.policies
     assert effective_policy.id in fake_session.effective_policies
+
+
+@pytest.mark.anyio
+async def test_repository_delete_for_resource_detaches_shared_policy(
+    fake_session,
+) -> None:
+    workspace, _admin_user, resource = seed_workspace_admin_resource(fake_session)
+    now = datetime.now(tz=UTC)
+    other_resource = Resource(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        name="Staging DB",
+        type="database",
+        status="active",
+        description=None,
+        created_at=now,
+        updated_at=now,
+    )
+    policy = Policy(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        name="Allow developers",
+        effect=PolicyEffect.ALLOW,
+        target_type="role",
+        target_value="user",
+        priority=10,
+        created_at=now,
+        updated_at=now,
+    )
+    first_link = EffectivePolicy(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        resource_id=resource.id,
+        policy_id=policy.id,
+        created_at=now,
+        updated_at=now,
+    )
+    second_link = EffectivePolicy(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        resource_id=other_resource.id,
+        policy_id=policy.id,
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session.resources[other_resource.id] = other_resource
+    fake_session.policies[policy.id] = policy
+    fake_session.effective_policies[first_link.id] = first_link
+    fake_session.effective_policies[second_link.id] = second_link
+
+    repository = PolicyRepository(fake_session)
+    await repository.delete_for_resource(
+        workspace_id=workspace.id,
+        resource_id=resource.id,
+        policy_id=policy.id,
+    )
+
+    assert policy.id in fake_session.policies
+    assert first_link.id not in fake_session.effective_policies
+    assert second_link.id in fake_session.effective_policies

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -39,9 +39,11 @@ class PolicyRepository:
     ) -> list[Policy]:
         result = await self.session.scalars(
             select(Policy)
+            .join(EffectivePolicy, EffectivePolicy.policy_id == Policy.id)
             .where(
+                EffectivePolicy.workspace_id == workspace_id,
+                EffectivePolicy.resource_id == resource_id,
                 Policy.workspace_id == workspace_id,
-                Policy.resource_id == resource_id,
             )
             .order_by(Policy.priority.desc(), Policy.created_at.asc(), Policy.id.asc())
         )
@@ -73,10 +75,13 @@ class PolicyRepository:
         policy_id: uuid.UUID,
     ) -> Policy | None:
         return await self.session.scalar(
-            select(Policy).where(
+            select(Policy)
+            .join(EffectivePolicy, EffectivePolicy.policy_id == Policy.id)
+            .where(
                 Policy.id == policy_id,
                 Policy.workspace_id == workspace_id,
-                Policy.resource_id == resource_id,
+                EffectivePolicy.workspace_id == workspace_id,
+                EffectivePolicy.resource_id == resource_id,
             )
         )
 
@@ -88,12 +93,27 @@ class PolicyRepository:
         policy_id: uuid.UUID,
     ) -> None:
         await self.session.execute(
-            delete(Policy).where(
-                Policy.id == policy_id,
-                Policy.workspace_id == workspace_id,
-                Policy.resource_id == resource_id,
+            delete(EffectivePolicy).where(
+                EffectivePolicy.workspace_id == workspace_id,
+                EffectivePolicy.resource_id == resource_id,
+                EffectivePolicy.policy_id == policy_id,
             )
         )
+        has_remaining_links = await self.session.scalar(
+            select(
+                exists().where(
+                    EffectivePolicy.workspace_id == workspace_id,
+                    EffectivePolicy.policy_id == policy_id,
+                )
+            )
+        )
+        if not has_remaining_links:
+            await self.session.execute(
+                delete(Policy).where(
+                    Policy.id == policy_id,
+                    Policy.workspace_id == workspace_id,
+                )
+            )
         await self.session.commit()
 
     async def rollback(self) -> None:

@@ -154,13 +154,6 @@ class FakeAsyncSession:
                 and workspace_id is not None
                 and resource_id is not None
             ):
-                policy = self.policies.get(policy_id)
-                if (
-                    policy is not None
-                    and policy.workspace_id == workspace_id
-                    and getattr(policy, "resource_id", None) == resource_id
-                ):
-                    return policy
                 for effective_policy in self.effective_policies.values():
                     if (
                         effective_policy.workspace_id == workspace_id
@@ -168,6 +161,15 @@ class FakeAsyncSession:
                         and effective_policy.policy_id == policy_id
                     ):
                         return self.policies.get(policy_id)
+
+        policy_ids = [value for value in params.values() if value in self.policies]
+        if policy_ids and workspace_id is not None and resource_id is None:
+            policy_id = policy_ids[0]
+            return any(
+                effective_policy.workspace_id == workspace_id
+                and effective_policy.policy_id == policy_id
+                for effective_policy in self.effective_policies.values()
+            )
 
         return None
 
@@ -183,19 +185,12 @@ class FakeAsyncSession:
 
         if entity_name == "Policy":
             policies = [
-                policy
-                for policy in self.policies.values()
-                if policy.workspace_id == workspace_id
-                and getattr(policy, "resource_id", None) == resource_id
+                self.policies[effective_policy.policy_id]
+                for effective_policy in self.effective_policies.values()
+                if effective_policy.workspace_id == workspace_id
+                and effective_policy.resource_id == resource_id
+                and effective_policy.policy_id in self.policies
             ]
-            if not policies:
-                policies = [
-                    self.policies[effective_policy.policy_id]
-                    for effective_policy in self.effective_policies.values()
-                    if effective_policy.workspace_id == workspace_id
-                    and effective_policy.resource_id == resource_id
-                    and effective_policy.policy_id in self.policies
-                ]
             policies.sort(
                 key=lambda policy: (-policy.priority, policy.created_at, str(policy.id))
             )
@@ -253,52 +248,62 @@ class FakeAsyncSession:
         workspace_id = workspace_ids[0] if workspace_ids else None
         resource_id = resource_ids[0] if resource_ids else None
         policy_ids = [value for value in params.values() if value in self.policies]
-        if resource_id is not None and not policy_ids:
+        table_name = getattr(getattr(statement, "table", None), "name", None)
+
+        if table_name == "resources" and resource_id is not None:
             resource = self.resources.get(resource_id)
             if resource is not None and (
                 workspace_id is None or resource.workspace_id == workspace_id
             ):
                 self.resources.pop(resource_id, None)
-                policy_ids_for_resource = {
-                    effective_policy.policy_id
-                    for effective_policy in self.effective_policies.values()
-                    if effective_policy.resource_id == resource_id
-                }
-                policy_ids_for_resource.update(
-                    policy_id
-                    for policy_id, policy in self.policies.items()
-                    if getattr(policy, "resource_id", None) == resource_id
-                )
-                for policy_id in policy_ids_for_resource:
-                    self.policies.pop(policy_id, None)
+                removed_policy_ids = set()
                 for effective_policy_id, effective_policy in list(
                     self.effective_policies.items()
                 ):
                     if effective_policy.resource_id == resource_id:
+                        removed_policy_ids.add(effective_policy.policy_id)
                         self.effective_policies.pop(effective_policy_id, None)
+                linked_policy_ids = {
+                    effective_policy.policy_id
+                    for effective_policy in self.effective_policies.values()
+                }
+                for policy_id in removed_policy_ids - linked_policy_ids:
+                    self.policies.pop(policy_id, None)
             return None
-        if not policy_ids:
-            policy_ids = list(self.policies)
-        for policy_id in policy_ids:
-            policy = self.policies.get(policy_id)
-            if policy is None or (
-                workspace_id is not None and policy.workspace_id != workspace_id
+
+        if table_name == "effective_policies":
+            for effective_policy_id, effective_policy in list(
+                self.effective_policies.items()
             ):
-                continue
-            if (
-                resource_id is not None
-                and getattr(policy, "resource_id", resource_id) != resource_id
-            ):
-                continue
-            matching_effective_policies = [
-                (effective_policy_id, effective_policy)
-                for effective_policy_id, effective_policy in self.effective_policies.items()
-                if effective_policy.policy_id == policy_id
-                and (resource_id is None or effective_policy.resource_id == resource_id)
-            ]
-            self.policies.pop(policy_id, None)
-            for effective_policy_id, _effective_policy in matching_effective_policies:
-                self.effective_policies.pop(effective_policy_id, None)
+                if (
+                    (
+                        workspace_id is None
+                        or effective_policy.workspace_id == workspace_id
+                    )
+                    and (
+                        resource_id is None
+                        or effective_policy.resource_id == resource_id
+                    )
+                    and (not policy_ids or effective_policy.policy_id in policy_ids)
+                ):
+                    self.effective_policies.pop(effective_policy_id, None)
+            return None
+
+        if table_name == "policies":
+            if not policy_ids:
+                policy_ids = list(self.policies)
+            for policy_id in policy_ids:
+                policy = self.policies.get(policy_id)
+                if policy is None or (
+                    workspace_id is not None and policy.workspace_id != workspace_id
+                ):
+                    continue
+                self.policies.pop(policy_id, None)
+                for effective_policy_id, effective_policy in list(
+                    self.effective_policies.items()
+                ):
+                    if effective_policy.policy_id == policy_id:
+                        self.effective_policies.pop(effective_policy_id, None)
         return None
 
 

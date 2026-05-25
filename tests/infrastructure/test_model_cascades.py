@@ -27,12 +27,12 @@ def test_resource_policy_foreign_keys_are_configured_for_database_cascade() -> N
     policy_workspace_fk = next(
         fk for fk in policy_table.foreign_keys if fk.parent.name == "workspace_id"
     )
-    policy_resource_fk_ondelete = next(
-        constraint.ondelete
+    policy_resource_fk_constraints = [
+        constraint
         for constraint in policy_table.foreign_key_constraints
         if {element.parent.name for element in constraint.elements}
         == {"resource_id", "workspace_id"}
-    )
+    ]
     effective_policy_foreign_key_ondeletes = {
         fk.ondelete
         for constraint in effective_policy_table.foreign_key_constraints
@@ -41,5 +41,5 @@ def test_resource_policy_foreign_keys_are_configured_for_database_cascade() -> N
 
     assert resource_workspace_fk.ondelete == "CASCADE"
     assert policy_workspace_fk.ondelete == "CASCADE"
-    assert policy_resource_fk_ondelete == "CASCADE"
+    assert policy_resource_fk_constraints == []
     assert effective_policy_foreign_key_ondeletes == {"CASCADE"}

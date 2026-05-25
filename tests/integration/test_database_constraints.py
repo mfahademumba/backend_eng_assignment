@@ -100,45 +100,11 @@ async def test_policy_priority_must_be_positive(db_session) -> None:
     db_session.add(
         Policy(
             workspace_id=workspace.id,
-            resource_id=resource.id,
             name="Invalid Policy",
             effect=PolicyEffect.ALLOW,
             target_type="user",
             target_value="user@example.com",
             priority=0,
-        )
-    )
-
-    with pytest.raises(IntegrityError):
-        await db_session.commit()
-
-
-async def test_policy_cannot_reference_resource_from_another_workspace(
-    db_session,
-) -> None:
-    workspace_a = Workspace(name="Workspace A")
-    workspace_b = Workspace(name="Workspace B")
-    db_session.add_all([workspace_a, workspace_b])
-    await db_session.flush()
-
-    resource_b = Resource(
-        workspace_id=workspace_b.id,
-        name="Workspace B Database",
-        type="database",
-        status="active",
-    )
-    db_session.add(resource_b)
-    await db_session.flush()
-
-    db_session.add(
-        Policy(
-            workspace_id=workspace_a.id,
-            resource_id=resource_b.id,
-            name="Cross Workspace Policy",
-            effect=PolicyEffect.ALLOW,
-            target_type="user",
-            target_value="user@example.com",
-            priority=1,
         )
     )
 
@@ -171,7 +137,6 @@ async def test_effective_policy_cannot_link_policy_to_different_workspace_resour
 
     policy_a = Policy(
         workspace_id=workspace_a.id,
-        resource_id=resource_a.id,
         name="Workspace A Policy",
         effect=PolicyEffect.ALLOW,
         target_type="user",
@@ -216,7 +181,6 @@ async def test_deleting_workspace_cascades_related_records(db_session) -> None:
 
     policy = Policy(
         workspace_id=workspace.id,
-        resource_id=resource.id,
         name="Allow Admin",
         effect=PolicyEffect.ALLOW,
         target_type="role",

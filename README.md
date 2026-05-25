@@ -253,3 +253,5 @@ curl -X POST http://localhost:8000/api/v1/access-check/ \
 - The Assignment Requirements document refers to 'Resources' on which policies were to be applied. This was assumed to be a dedicated 'Resources' table in the DB.
 - The folder structure mentioned in the Assignment Requirements document was assumed to be based on Django. Therefore, I took the liberty to adjust it according to Layered architecture patterns. The tests folder structure is also adjusted accordingly to better reflect the app folder structure.
 - Much of the test coverage requirements (above 80%) was achieved through property based tests using 'hypothesis' and 'schemathesis'. This was assumed to be sufficient to meet the test coverage requirement.
+- Logging out invalidates all auth tokens. Therefore, if user is logged in on multiple devices they must login on all required devices again. This was assumed to be satisfactory for the scope of this assignment.
+- It is assumed that the responses in the API contract mentioned in the Assignment requirement document is referring to the data field and not the entire response including success status, message etc.

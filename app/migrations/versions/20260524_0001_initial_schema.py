@@ -64,7 +64,6 @@ def upgrade() -> None:
     op.create_table(
         "policies",
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("resource_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("effect", policy_effect_enum, nullable=False),
         sa.Column("target_type", sa.Text(), nullable=False),
@@ -172,23 +171,10 @@ def upgrade() -> None:
         sa.UniqueConstraint("workspace_id", "email", name="uq_users_workspace_email"),
     )
     op.create_index("ix_users_workspace_id_id", "users", ["workspace_id", "id"])
-    op.create_foreign_key(
-        "fk_policies_resource_workspace",
-        "policies",
-        "resources",
-        ["resource_id", "workspace_id"],
-        ["id", "workspace_id"],
-        ondelete="CASCADE",
-    )
     op.create_index(
-        "ix_policies_workspace_resource",
+        "ix_policies_workspace_priority",
         "policies",
-        ["workspace_id", "resource_id"],
-    )
-    op.create_index(
-        "ix_policies_workspace_resource_priority",
-        "policies",
-        ["workspace_id", "resource_id", "priority"],
+        ["workspace_id", "priority"],
     )
     op.create_table(
         "effective_policies",

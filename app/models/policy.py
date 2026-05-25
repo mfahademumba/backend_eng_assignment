@@ -7,7 +7,6 @@ from sqlalchemy import (
     CheckConstraint,
     Enum,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -21,7 +20,6 @@ from app.models.base import Base, PolicyEffect, TimestampMixin, UUIDPrimaryKeyMi
 
 if TYPE_CHECKING:
     from app.models.effective_policy import EffectivePolicy
-    from app.models.resource import Resource
     from app.models.workspace import Workspace
 
 
@@ -34,18 +32,7 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="ck_policies_target_type_valid",
         ),
         UniqueConstraint("id", "workspace_id", name="uq_policies_id_workspace_id"),
-        ForeignKeyConstraint(
-            ["resource_id", "workspace_id"],
-            ["resources.id", "resources.workspace_id"],
-            ondelete="CASCADE",
-        ),
-        Index("ix_policies_workspace_resource", "workspace_id", "resource_id"),
-        Index(
-            "ix_policies_workspace_resource_priority",
-            "workspace_id",
-            "resource_id",
-            "priority",
-        ),
+        Index("ix_policies_workspace_priority", "workspace_id", "priority"),
     )
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
@@ -53,7 +40,6 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
     )
-    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     effect: Mapped[PolicyEffect] = mapped_column(
         Enum(PolicyEffect, name="policy_effect_enum", native_enum=True),
@@ -65,11 +51,6 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     workspace: Mapped["Workspace"] = relationship(
         "Workspace", back_populates="policies"
-    )
-    resource: Mapped["Resource"] = relationship(
-        "Resource",
-        back_populates="policies",
-        overlaps="workspace,resources",
     )
     effective_policies: Mapped[list["EffectivePolicy"]] = relationship(
         "EffectivePolicy",
