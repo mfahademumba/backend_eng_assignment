@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.models.base import (
     Base,
     PolicyEffect,
+    ResourceType,
     TimestampMixin,
     UserRole,
     UUIDPrimaryKeyMixin,
@@ -19,6 +20,7 @@ __all__ = [
     "TimestampMixin",
     "UserRole",
     "PolicyEffect",
+    "ResourceType",
     "Workspace",
     "User",
     "Policy",

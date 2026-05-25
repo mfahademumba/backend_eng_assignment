@@ -26,6 +26,11 @@ workspace_names = st.text(
     min_size=3,
     max_size=40,
 ).filter(lambda value: value.strip() != "")
+resource_names = st.text(
+    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_",
+    min_size=3,
+    max_size=40,
+).filter(lambda value: value.strip() != "")
 roles = st.sampled_from(list(UserRole))
 policy_effects = st.sampled_from(list(PolicyEffect))
 workflow_settings = settings(
@@ -213,7 +218,7 @@ def test_generated_workspace_user_create_list_and_update_workflow(
     assert update_response.json()["data"]["user"]["role"] == UserRole.ADMIN.value
 
 
-@given(resource_name=safe_text, status=safe_text)
+@given(resource_name=resource_names, status=safe_text)
 @workflow_settings
 def test_generated_resource_create_list_update_delete_workflow(
     client,
@@ -260,8 +265,8 @@ def test_generated_resource_create_list_update_delete_workflow(
         f"/api/v1/workspaces/{workspace.id}/resources/{resource_id}/",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert delete_response.status_code == 200
-    assert delete_response.json()["data"]["resource_id"] == resource_id
+    assert delete_response.status_code == 204
+    assert not delete_response.content
 
 
 @given(
@@ -322,7 +327,8 @@ def test_generated_policy_and_access_check_workflow(
         f"/api/v1/workspaces/{workspace.id}/resources/{resource.id}/policies/{policy_id}/",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert delete_policy_response.status_code == 200
+    assert delete_policy_response.status_code == 204
+    assert not delete_policy_response.content
 
 
 @given(effect=policy_effects)

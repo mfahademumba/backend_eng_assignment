@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -55,7 +56,7 @@ async def request_validation_exception_handler(
         errors=errors,
     )
     return JSONResponse(
-        status_code=422,
+        status_code=400,
         content=response.model_dump(mode="json"),
     )
 
@@ -79,6 +80,31 @@ async def unhandled_exception_handler(
 
 app.include_router(health_router)
 app.include_router(api_v1_router)
+
+
+def custom_openapi() -> dict:
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        routes=app.routes,
+    )
+    for path_item in openapi_schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.get("responses", {})
+            validation_response = responses.pop("422", None)
+            if validation_response is not None and "400" not in responses:
+                responses["400"] = validation_response
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 def main() -> None:

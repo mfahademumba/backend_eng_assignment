@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
@@ -19,7 +19,6 @@ from app.schemas.common import ApiResponse, ResponseBuilder
 from app.schemas.resource import (
     ResourceCreateData,
     ResourceCreateRequest,
-    ResourceDeleteData,
     ResourceDetailsData,
     ResourceListData,
     ResourceUpdateData,
@@ -47,7 +46,6 @@ def get_resource_service(
     status_code=status.HTTP_201_CREATED,
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
         status.HTTP_404_NOT_FOUND: {"model": ApiResponse[None]},
@@ -116,7 +114,6 @@ async def get_resource_details(
     status_code=status.HTTP_200_OK,
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
         status.HTTP_404_NOT_FOUND: {"model": ApiResponse[None]},
@@ -140,8 +137,7 @@ async def update_resource(
 
 @router.delete(
     "/{resource_id}/",
-    response_model=ApiResponse[ResourceDeleteData],
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
     responses={
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
@@ -153,9 +149,9 @@ async def delete_resource(
     resource_id: uuid.UUID,
     service: ResourceService = Depends(get_resource_service),
     _: AuthenticatedUser = Depends(get_current_admin_for_workspace),
-) -> ApiResponse[ResourceDeleteData]:
-    data = await service.delete_resource(
+) -> Response:
+    await service.delete_resource(
         workspace_id=workspace_id,
         resource_id=resource_id,
     )
-    return ResponseBuilder.success(data, message="Resource deleted successfully.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

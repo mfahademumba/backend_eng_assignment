@@ -6,10 +6,10 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.models import ResourceType
 from app.schemas.policy import PolicySummary
 
-ResourceName = Annotated[str, StringConstraints(min_length=1, max_length=255)]
-ResourceType = Annotated[str, StringConstraints(min_length=1, max_length=255)]
+ResourceName = Annotated[str, StringConstraints(min_length=3, max_length=255)]
 ResourceStatus = Annotated[str, StringConstraints(min_length=1, max_length=255)]
 ResourceDescription = Annotated[str, StringConstraints(max_length=5000)]
 
@@ -34,7 +34,7 @@ class ResourceSummary(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
     name: str
-    type: str
+    type: ResourceType
     description: str | None
     status: str
     created_at: datetime

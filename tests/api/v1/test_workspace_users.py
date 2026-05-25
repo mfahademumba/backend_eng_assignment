@@ -98,7 +98,7 @@ def test_create_workspace_user_rejects_weak_password(
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400
 
     body = response.json()
     assert body["success"] is False
@@ -123,9 +123,9 @@ def test_workspace_user_routes_openapi_document_payload_error_responses(client) 
     ]["responses"]
 
     assert "400" in create_responses
-    assert "422" in create_responses
+    assert "422" not in create_responses
     assert "400" in update_responses
-    assert "422" in update_responses
+    assert "422" not in update_responses
 
 
 def test_create_workspace_user_rejects_duplicate_email_in_same_workspace(

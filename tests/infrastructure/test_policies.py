@@ -95,8 +95,8 @@ def test_admin_can_create_list_and_delete_resource_policy(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert delete_response.status_code == 200
-    assert delete_response.json()["data"]["policy_id"] == created_policy["id"]
+    assert delete_response.status_code == 204
+    assert not delete_response.content
     assert created_policy["id"] not in {
         str(policy_id) for policy_id in fake_session.policies
     }
@@ -193,7 +193,7 @@ def test_policy_create_validates_user_target_uuid(
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400
     assert response.json()["message"] == "Validation failed."
 
 

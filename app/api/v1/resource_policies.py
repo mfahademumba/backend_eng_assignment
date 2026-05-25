@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import AuthenticatedUser, get_current_admin_for_workspace
@@ -14,7 +14,6 @@ from app.schemas.common import ApiResponse, ResponseBuilder
 from app.schemas.policy import (
     PolicyCreateData,
     PolicyCreateRequest,
-    PolicyDeleteData,
     PolicyListData,
 )
 from app.services.policy_service import PolicyService
@@ -41,7 +40,6 @@ def get_policy_service(
     status_code=status.HTTP_201_CREATED,
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
         status.HTTP_404_NOT_FOUND: {"model": ApiResponse[None]},
@@ -88,8 +86,7 @@ async def list_resource_policies(
 
 @router.delete(
     "/{policy_id}/",
-    response_model=ApiResponse[PolicyDeleteData],
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
     responses={
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
@@ -102,10 +99,10 @@ async def delete_resource_policy(
     policy_id: uuid.UUID,
     service: PolicyService = Depends(get_policy_service),
     _: AuthenticatedUser = Depends(get_current_admin_for_workspace),
-) -> ApiResponse[PolicyDeleteData]:
-    data = await service.delete_resource_policy(
+) -> Response:
+    await service.delete_resource_policy(
         workspace_id=workspace_id,
         resource_id=resource_id,
         policy_id=policy_id,
     )
-    return ResponseBuilder.success(data, message="Policy deleted successfully.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

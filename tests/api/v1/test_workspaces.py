@@ -49,7 +49,7 @@ def test_create_workspace_rejects_weak_password(client) -> None:
         },
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 400
 
     body = response.json()
     assert body["success"] is False
@@ -104,7 +104,7 @@ def test_create_workspace_openapi_documents_payload_error_responses(client) -> N
     assert response.status_code == 200
     responses = response.json()["paths"]["/api/v1/workspaces/"]["post"]["responses"]
     assert "400" in responses
-    assert "422" in responses
+    assert "422" not in responses
 
 
 def test_get_workspace_details_returns_200_for_admin(

@@ -33,7 +33,6 @@ def get_access_check_service(
     status_code=status.HTTP_200_OK,
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": ApiResponse[None]},
-        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiResponse[None]},
         status.HTTP_401_UNAUTHORIZED: {"model": ApiResponse[None]},
         status.HTTP_403_FORBIDDEN: {"model": ApiResponse[None]},
         status.HTTP_404_NOT_FOUND: {"model": ApiResponse[None]},

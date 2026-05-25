@@ -46,10 +46,19 @@ class PolicyEffect(str, enum.Enum):
     DENY = "deny"
 
 
+class ResourceType(str, enum.Enum):
+    DOCUMENT = "document"
+    DATABASE = "database"
+    SERVICE = "service"
+    API = "api"
+    FILE = "file"
+
+
 __all__ = [
     "Base",
     "UUIDPrimaryKeyMixin",
     "TimestampMixin",
     "UserRole",
     "PolicyEffect",
+    "ResourceType",
 ]

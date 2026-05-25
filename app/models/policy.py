@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -28,11 +29,22 @@ class Policy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "policies"
     __table_args__ = (
         CheckConstraint("priority > 0", name="ck_policies_priority_positive"),
+        CheckConstraint(
+            "target_type IN ('role', 'user')",
+            name="ck_policies_target_type_valid",
+        ),
         UniqueConstraint("id", "workspace_id", name="uq_policies_id_workspace_id"),
         ForeignKeyConstraint(
             ["resource_id", "workspace_id"],
             ["resources.id", "resources.workspace_id"],
             ondelete="CASCADE",
+        ),
+        Index("ix_policies_workspace_resource", "workspace_id", "resource_id"),
+        Index(
+            "ix_policies_workspace_resource_priority",
+            "workspace_id",
+            "resource_id",
+            "priority",
         ),
     )
 
