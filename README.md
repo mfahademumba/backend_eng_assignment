@@ -249,6 +249,7 @@ curl -X POST http://localhost:8000/api/v1/access-check/ \
 ```
 
 ## Assumptions made
-- The folder structure mentioned in the Assignment Requirements document was assumed to be based on Django. Therefore, I took the liberty to adjust it according to Layered acrchitecture patterns.
 - It was assumed that the Multi-tenant architecture should be able to support large number of workspaces not just a handful.
 - The Assignment Requirements document refers to 'Resources' on which policies were to be applied. This was assumed to be a dedicated 'Resources' table in the DB.
+- The folder structure mentioned in the Assignment Requirements document was assumed to be based on Django. Therefore, I took the liberty to adjust it according to Layered architecture patterns. The tests folder structure is also adjusted accordingly to better reflect the app folder structure.
+- Much of the test coverage requirements (above 80%) was achieved through property based tests using 'hypothesis' and 'schemathesis'. This was assumed to be sufficient to meet the test coverage requirement.

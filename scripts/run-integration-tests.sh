@@ -67,6 +67,26 @@ fi
 
 docker compose up -d db
 
+POSTGRES_READY_DB="${POSTGRES_DB:-postgres}"
+POSTGRES_READY_ATTEMPTS=24
+attempt=1
+
+echo "Waiting for Postgres to accept connections..."
+while [ "$attempt" -le "$POSTGRES_READY_ATTEMPTS" ]; do
+  if docker compose exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_READY_DB" >/dev/null 2>&1; then
+    break
+  fi
+
+  if [ "$attempt" -eq "$POSTGRES_READY_ATTEMPTS" ]; then
+    echo "Postgres did not become ready in time." >&2
+    docker compose logs db >&2
+    exit 1
+  fi
+
+  attempt=$((attempt + 1))
+  sleep 1
+done
+
 # The Postgres image applies POSTGRES_PASSWORD only when the Docker volume is first initialized.
 # Keep the existing local volume usable by aligning the DB user with TEST_DATABASE_URL.
 docker compose exec -T db psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 \
